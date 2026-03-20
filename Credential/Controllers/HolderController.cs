@@ -61,7 +61,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.PresentationDefinition == null)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
             }
 
             object result;
@@ -71,7 +71,7 @@ namespace Credential.Controllers
             }
             catch (Exception)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
             }
 
             return Ok(new ServiceResult(true, "Presentationdefinition parsed successfully", 0, "", result));
@@ -82,7 +82,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.presentation_Definition == null || request.verifiableCredential == null || request.selectedClaims == null || request.Nonce == null || request.holderSUID == null)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.GeneratePresentationSubmissionAsync(request);
@@ -95,7 +95,7 @@ namespace Credential.Controllers
         {
             if (request == null)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
             }
 
             if (request.VerifiablePresentation == null || request.PresentationSubmission == null)

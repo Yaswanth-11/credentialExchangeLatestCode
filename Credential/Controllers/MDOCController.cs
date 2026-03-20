@@ -33,7 +33,7 @@ namespace Credential.Controllers
         {
             if (request == null || string.IsNullOrEmpty(request.DocumentType) || request.Claims == null || request.Claims.Count == 0)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
             var serviceResult = _verifiableCredentialService.prepareRequestURI(request.DocumentType, request.Claims);

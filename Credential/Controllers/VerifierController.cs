@@ -33,7 +33,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.Type == null || request.Scope == null || request.SelectedClaims == null)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.GenerateRequestUriAsync(request);
@@ -67,7 +67,7 @@ namespace Credential.Controllers
         {
             if (request == null || string.IsNullOrWhiteSpace(request.VerifiablePresentation))
             {
-                return BadRequest(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.VerifyPresentationFromVpTokenAsync(request.VerifiablePresentation);
