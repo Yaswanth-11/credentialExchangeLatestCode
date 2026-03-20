@@ -29,16 +29,16 @@ namespace Credential.Controllers
         }
 
         [HttpPost("prepareRequestURI")]
-        public ServiceResult prepareRequestURI([FromBody] DocumentRequest request)
+        public IActionResult prepareRequestURI([FromBody] DocumentRequest request)
         {
             if (request == null || string.IsNullOrEmpty(request.DocumentType) || request.Claims == null || request.Claims.Count == 0)
             {
-                return new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null);
+                return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
             var serviceResult = _verifiableCredentialService.prepareRequestURI(request.DocumentType, request.Claims);
             _logger.LogInformation("Successfully generated Presentation Definition.");
-            return serviceResult;
+            return Ok(serviceResult);
         }
 
         [HttpGet("getPresentationDefinition/{transactionId}")]

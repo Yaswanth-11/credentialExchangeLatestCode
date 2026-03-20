@@ -57,11 +57,11 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation/definition/claims")]
-        public async Task<ServiceResult> ParsePresentationDefinitionAsync([FromBody] PresentationDefinitionRequest request)
+        public async Task<IActionResult> ParsePresentationDefinitionAsync([FromBody] PresentationDefinitionRequest request)
         {
             if (request == null || request.PresentationDefinition == null)
             {
-                return new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null);
+                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
             }
 
             object result;
@@ -71,10 +71,10 @@ namespace Credential.Controllers
             }
             catch (Exception)
             {
-                return new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null);
+                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
             }
 
-            return new ServiceResult(true, "Presentationdefinition parsed successfully", 0, "", result);
+            return Ok(new ServiceResult(true, "Presentationdefinition parsed successfully", 0, "", result));
         }
 
         [HttpPost("presentation_with_claims/submission")]
@@ -82,7 +82,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.presentation_Definition == null || request.verifiableCredential == null || request.selectedClaims == null || request.Nonce == null || request.holderSUID == null)
             {
-                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+                return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.GeneratePresentationSubmissionAsync(request);
@@ -93,9 +93,14 @@ namespace Credential.Controllers
         [HttpPost("presentation/response/{transaction_id}")]
         public async Task<IActionResult> SubmitVpTokenAsync(string transaction_id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] VPTokenSubmissionRequest request)
         {
-            if (request == null || request.VerifiablePresentation == null || request.PresentationSubmission == null)
+            if (request == null)
             {
                 return BadRequest(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
+            }
+
+            if (request.VerifiablePresentation == null || request.PresentationSubmission == null)
+            {
+                return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
             }
 
             try

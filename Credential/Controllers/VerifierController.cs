@@ -29,16 +29,16 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation/request/uri")]
-        public async Task<ServiceResult> GenerateRequestUri([FromBody] PresentationRequest request)
+        public async Task<IActionResult> GenerateRequestUri([FromBody] PresentationRequest request)
         {
             if (request == null || request.Type == null || request.Scope == null || request.SelectedClaims == null)
             {
-                return new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null);
+                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.GenerateRequestUriAsync(request);
             _logger.LogInformation("Request URI generated successfully.");
-            return new ServiceResult(true, "Request URI generated successfully.", 0, "", result);
+            return Ok(new ServiceResult(true, "Request URI generated successfully.", 0, "", result));
         }
 
         [HttpGet("presentation/verify/result/{transactionId}")]
@@ -67,7 +67,7 @@ namespace Credential.Controllers
         {
             if (request == null || string.IsNullOrWhiteSpace(request.VerifiablePresentation))
             {
-                return Ok(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
+                return BadRequest(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.VerifyPresentationFromVpTokenAsync(request.VerifiablePresentation);
