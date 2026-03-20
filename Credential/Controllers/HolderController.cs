@@ -68,7 +68,9 @@ namespace Credential.Controllers
             PresentationDefinitionRequest? model;
             try
             {
-                model = JsonSerializer.Deserialize<PresentationDefinitionRequest>(request.GetRawText());
+                model = JsonSerializer.Deserialize<PresentationDefinitionRequest>(
+                    request.GetRawText(),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch (Exception)
             {
@@ -112,7 +114,9 @@ namespace Credential.Controllers
             PresentationSubmissionRequest? model;
             try
             {
-                model = JsonSerializer.Deserialize<PresentationSubmissionRequest>(request.GetRawText());
+                model = JsonSerializer.Deserialize<PresentationSubmissionRequest>(
+                    request.GetRawText(),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch (Exception)
             {
@@ -145,7 +149,9 @@ namespace Credential.Controllers
             VPTokenSubmissionRequest? model;
             try
             {
-                model = JsonSerializer.Deserialize<VPTokenSubmissionRequest>(request.GetRawText());
+                model = JsonSerializer.Deserialize<VPTokenSubmissionRequest>(
+                    request.GetRawText(),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch (Exception)
             {

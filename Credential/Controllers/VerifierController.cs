@@ -41,7 +41,9 @@ namespace Credential.Controllers
             PresentationRequest? model;
             try
             {
-                model = JsonSerializer.Deserialize<PresentationRequest>(request.GetRawText());
+                model = JsonSerializer.Deserialize<PresentationRequest>(
+                    request.GetRawText(),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch (Exception)
             {
@@ -90,7 +92,9 @@ namespace Credential.Controllers
             VerifyPresentationRequest? model;
             try
             {
-                model = JsonSerializer.Deserialize<VerifyPresentationRequest>(request.GetRawText());
+                model = JsonSerializer.Deserialize<VerifyPresentationRequest>(
+                    request.GetRawText(),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch (Exception)
             {
