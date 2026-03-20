@@ -1,1 +1,20 @@
-﻿using StackExchange.Redis;using Microsoft.Extensions.Configuration;namespace Credential.RedisDB{    public class RedisService    {        private readonly IDatabase _redisConnection;        public RedisService(IConnectionMultiplexer redisConnection)        {            _redisConnection = redisConnection.GetDatabase();        }        public IDatabase GetDatabase()        {            return _redisConnection;        }    }}
+﻿using StackExchange.Redis;
+using Microsoft.Extensions.Configuration;
+
+namespace Credential.RedisDB
+{
+    public class RedisService
+    {
+        private readonly IDatabase _redisConnection;
+
+        public RedisService(IConnectionMultiplexer redisConnection)
+        {
+            _redisConnection = redisConnection.GetDatabase();
+        }
+
+        public IDatabase GetDatabase()
+        {
+            return _redisConnection;
+        }
+    }
+}

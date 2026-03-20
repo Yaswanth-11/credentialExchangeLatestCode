@@ -1,8 +1,10 @@
 ﻿using Credential.Models;
 using Credential.Services.Interface;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cors;
+using Lux.Infrastructure;
 
 namespace Credential.Controllers
 {
@@ -33,10 +35,18 @@ namespace Credential.Controllers
         {
             if (transaction_id == null)
             {
-                throw new ArgumentException("transaction_id should not be null");
+                throw new LxException("transaction_id should not be null", LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
 
-            var requestObject = await _verifiableCredentialService.FetchRequestObjectAsync(transaction_id);
+            object requestObject;
+            try
+            {
+                requestObject = await _verifiableCredentialService.FetchRequestObjectAsync(transaction_id);
+            }
+            catch (Exception)
+            {
+                return new ServiceResult(false, "Request object not found for transaction ID", 404, "Not Found", transaction_id);
+            }
 
             if (requestObject == null)
             {
@@ -51,10 +61,18 @@ namespace Credential.Controllers
         {
             if (request == null || request.PresentationDefinition == null)
             {
-                throw new ArgumentException("Invalid request body. 'PresentationDefinition' is required.");
+                throw new LxException("Invalid request body. 'PresentationDefinition' is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
 
-            var result = await _verifiableCredentialService.ParsePresentationDefinitionAsync(request.PresentationDefinition);
+            object result;
+            try
+            {
+                result = await _verifiableCredentialService.ParsePresentationDefinitionAsync(request.PresentationDefinition);
+            }
+            catch (Exception)
+            {
+                throw new LxException("Invalid request body. 'PresentationDefinition' is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
+            }
 
             return new ServiceResult(true, "Presentationdefinition parsed successfully", 0, "", result);
         }
@@ -64,7 +82,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.presentation_Definition == null || request.verifiableCredential == null || request.selectedClaims == null || request.Nonce == null || request.holderSUID == null)
             {
-                throw new ArgumentException("Invalid request body");
+                throw new LxException("Invalid request body", LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
 
             var result = await _verifiableCredentialService.GeneratePresentationSubmissionAsync(request);
@@ -73,11 +91,11 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation/response/{transaction_id}")]
-        public async Task<ServiceResult> SubmitVpTokenAsync(string transaction_id, [FromBody] VPTokenSubmissionRequest request)
+        public async Task<ServiceResult> SubmitVpTokenAsync(string transaction_id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] VPTokenSubmissionRequest request)
         {
             if (request == null || request.VerifiablePresentation == null || request.PresentationSubmission == null)
             {
-                throw new ArgumentException("Invalid request body.");
+                return new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null);
             }
 
             await _verifiableCredentialService.SubmitVpTokenAsync(

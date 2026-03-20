@@ -33,7 +33,7 @@ namespace Credential.Middleware
                     "LxException occurred. ExceptionType={ExceptionType} Code={Code} Path={Path} TraceId={TraceId}",
                     nameof(LxException), ex.Code, context.Request.Path, context.TraceIdentifier);
 
-                context.Response.StatusCode = (int)HttpStatusCode.OK;
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 context.Response.ContentType = "application/json";
 
                 var result = new ServiceResult(false, ex.Message, ex.Code,

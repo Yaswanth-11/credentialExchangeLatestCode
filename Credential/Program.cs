@@ -19,6 +19,11 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.PropertyNamingPolicy = null; // Ensures PascalCase in response
 });
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    // Let controllers and middleware produce existing response format instead of automatic validation payloads.
+    options.SuppressModelStateInvalidFilter = true;
+});
 // Register Redis connection as a singleton
 builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
 {

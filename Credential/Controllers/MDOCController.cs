@@ -1,6 +1,7 @@
 ﻿using Credential.Models;
 using Credential.Services.Interface;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Lux.Infrastructure;
 using Microsoft.AspNetCore.Cors;
 
@@ -54,33 +55,33 @@ namespace Credential.Controllers
         }
 
         [HttpPost("parsePresentationDefinition")]
-        public ServiceResult parsePresentationDefinition([FromBody] object requestData)
+        public ServiceResult parsePresentationDefinition([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object requestData)
         {
             _logger.LogInformation("Processing PresentationDefinition and QR Engagement Data.");
 
             if (requestData == null)
             {
-                throw new LxException("Request body is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                return new ServiceResult(false, "Request body is required.", 400, "Invalid request body", null);
             }
 
             return _verifiableCredentialService.parsePresentationDefinition(requestData);
         }
 
         [HttpPost("parseISO")]
-        public ServiceResult parseISO([FromBody] object RequestData)
+        public ServiceResult parseISO([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object RequestData)
         {
             _logger.LogInformation("Processing PresentationDefinition and QR Engagement Data.");
 
             if (RequestData == null)
             {
-                throw new LxException("Request body is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                return new ServiceResult(false, "Request body is required.", 400, "Invalid request body", null);
             }
 
             return _verifiableCredentialService.parseISO(RequestData);
         }
 
         [HttpPost("postISO/{transactionId}")]
-        public ServiceResult postISO(string transactionId, [FromBody] object requestData)
+        public ServiceResult postISO(string transactionId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object requestData)
         {
             _logger.LogInformation("Saving MDOC request for transactionId: {TransactionId}", transactionId);
 
@@ -91,7 +92,7 @@ namespace Credential.Controllers
 
             if (requestData == null)
             {
-                throw new LxException("Request body is missing.", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                return new ServiceResult(false, "Request body is missing.", 400, "Invalid request body", null);
             }
 
             return _verifiableCredentialService.postISO(transactionId, requestData);

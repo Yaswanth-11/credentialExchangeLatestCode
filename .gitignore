@@ -1,0 +1,82 @@
+# ------------------------------
+# .NET / Visual Studio
+# ------------------------------
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.rsuser
+*.suo
+*.userprefs
+*.cache
+*.pdb
+*.ilk
+*.idb
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.dbmdl
+*.jfm
+*.psess
+*.vsp
+*.vspx
+*.pidb
+*.svclog
+*.scc
+
+# Visual Studio / VS Code workspace settings
+.vs/
+.vscode/
+
+# ------------------------------
+# ASP.NET / runtime files
+# ------------------------------
+appsettings.*.local.json
+*.runtimeconfig.dev.json
+
+# ------------------------------
+# NuGet
+# ------------------------------
+*.nupkg
+*.snupkg
+*.nuspec
+
+# ------------------------------
+# Test / coverage output
+# ------------------------------
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# ------------------------------
+# Logs / temp files
+# ------------------------------
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# ------------------------------
+# OS artifacts
+# ------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Windows Mark-of-the-Web metadata artifacts (if present as files)
+*Zone.Identifier
+
+# Project-specific generated report
+report-mdoc-updated-1.xml
+
+# Explicit build output ignores
+bin/
+obj/
+

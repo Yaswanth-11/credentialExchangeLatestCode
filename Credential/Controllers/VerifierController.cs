@@ -3,6 +3,7 @@ using Credential.Models;
 using System.Threading.Tasks;
 using Credential.Services.Interface;
 using Microsoft.AspNetCore.Cors;
+using Lux.Infrastructure;
 
 namespace Credential.Controllers
 {
@@ -32,7 +33,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.Type == null || request.Scope == null || request.SelectedClaims == null)
             {
-                throw new ArgumentException("Invalid request body. 'PresentationRequest' is required.");
+                throw new LxException("Invalid request body. 'PresentationRequest' is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
 
             var result = await _verifiableCredentialService.GenerateRequestUriAsync(request);
@@ -45,10 +46,18 @@ namespace Credential.Controllers
         {
             if (transactionId == null)
             {
-                throw new ArgumentException("'transactionId' is required.");
+                throw new LxException("'transactionId' is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
 
-            var result = await _verifiableCredentialService.VerifyPresentationResponseAsync(transactionId);
+            object result;
+            try
+            {
+                result = await _verifiableCredentialService.VerifyPresentationResponseAsync(transactionId);
+            }
+            catch (Exception)
+            {
+                return NotFound(new { success = false, message = "Transaction data not found." });
+            }
             _logger.LogInformation("Presentation response verified successfully.");
             return Ok(result);
         }
@@ -58,7 +67,7 @@ namespace Credential.Controllers
         {
             if (request == null || string.IsNullOrWhiteSpace(request.VerifiablePresentation))
             {
-                throw new ArgumentException("Invalid Verifiable Presentation provided.");
+                throw new LxException("Invalid Verifiable Presentation provided.", LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
 
             var result = await _verifiableCredentialService.VerifyPresentationFromVpTokenAsync(request.VerifiablePresentation);
@@ -71,7 +80,7 @@ namespace Credential.Controllers
         {
             if (!ModelState.IsValid)
             {
-                throw new ArgumentException("Invalid request body");
+                throw new LxException("Invalid request body", LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
 
             var result = await _verifiableCredentialService.VerifyPresentationResponseAsync_with_id(transactionId);
