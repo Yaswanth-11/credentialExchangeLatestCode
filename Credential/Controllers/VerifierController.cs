@@ -60,7 +60,7 @@ namespace Credential.Controllers
             return Ok(new ServiceResult(true, "Request URI generated successfully.", 0, "", result));
         }
 
-        [HttpGet("presentation/verify/result/{transactionId}")]
+        [HttpGet("presentation/verify/result/{transactionId:regex(^[A-Za-z0-9_-]+$)}")]
         public async Task<IActionResult> VerifyPresentationResponse(string transactionId)
         {
             if (transactionId == null)
@@ -111,7 +111,7 @@ namespace Credential.Controllers
             return Ok(result);
         }
 
-        [HttpGet("presentation/verify/result_with_vptoken/{transactionId}")]
+        [HttpGet("presentation/verify/result_with_vptoken/{transactionId:regex(^[A-Za-z0-9_-]+$)}")]
         public async Task<IActionResult> VerifyPresentationResponse_with_vptoken(string transactionId)
         {
             if (!ModelState.IsValid)

@@ -31,7 +31,7 @@ namespace Credential.Controllers
         }
 
         // Get Request Object by Transaction ID
-        [HttpGet("presentation/requestObject/{transaction_id}")]
+        [HttpGet("presentation/requestObject/{transaction_id:regex(^[A-Za-z0-9_-]+$)}")]
         public async Task<ServiceResult> GetRequestObjectAsync(string transaction_id)
         {
             if (transaction_id == null)

@@ -81,7 +81,7 @@ namespace Credential.Controllers
             return Ok(serviceResult);
         }
 
-        [HttpGet("getPresentationDefinition/{transactionId}")]
+        [HttpGet("getPresentationDefinition/{transactionId:regex(^[A-Za-z0-9_-]+$)}")]
         public IActionResult getPresentationDefinition(string transactionId)
         {
             _logger.LogInformation("Fetching PresentationDefinition for transactionId: {TransactionId}", transactionId);
@@ -167,7 +167,7 @@ namespace Credential.Controllers
         }
 
         [HttpGet]
-        [Route("getISO/{transactionId}")]
+        [Route("getISO/{transactionId:regex(^[A-Za-z0-9_-]+$)}")]
         public async Task<IActionResult> getISO(string transactionId)
         {
             try
