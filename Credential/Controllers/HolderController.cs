@@ -62,7 +62,7 @@ namespace Credential.Controllers
         {
             if (request.ValueKind != JsonValueKind.Object)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
             }
 
             var allowed = new HashSet<string> { "PresentationDefinition" };
@@ -107,7 +107,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.presentation_Definition == null || request.verifiableCredential == null || request.selectedClaims == null || request.Nonce == null || request.holderSUID == null)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.GeneratePresentationSubmissionAsync(request);
@@ -125,7 +125,7 @@ namespace Credential.Controllers
 
             if (request.ValueKind != JsonValueKind.Object)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
             }
 
             var allowed = new HashSet<string> { "PresentationSubmission", "VerifiablePresentation", "State" };

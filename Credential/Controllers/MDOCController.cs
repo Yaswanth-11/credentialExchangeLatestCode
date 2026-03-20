@@ -34,7 +34,7 @@ namespace Credential.Controllers
         {
             if (request.ValueKind != JsonValueKind.Object)
             {
-                return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
             var allowed = new HashSet<string> { "DocumentType", "Claims" };
@@ -162,7 +162,7 @@ namespace Credential.Controllers
 
             if (requestData == null)
             {
-                return BadRequest(new ServiceResult(false, "Request body is missing.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Request body is missing.", 400, "Invalid request body", null));
             }
 
             try
