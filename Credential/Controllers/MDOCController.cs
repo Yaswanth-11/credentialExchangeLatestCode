@@ -37,15 +37,6 @@ namespace Credential.Controllers
                 return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
-            var allowed = new HashSet<string> { "DocumentType", "Claims" };
-            foreach (var property in request.EnumerateObject())
-            {
-                if (!allowed.Contains(property.Name))
-                {
-                    return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
-                }
-            }
-
             string? documentType = null;
             if (request.TryGetProperty("DocumentType", out var documentTypeElement) && documentTypeElement.ValueKind == JsonValueKind.String)
             {

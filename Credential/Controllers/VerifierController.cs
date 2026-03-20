@@ -38,15 +38,6 @@ namespace Credential.Controllers
                 return Ok(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
             }
 
-            var allowed = new HashSet<string> { "Type", "Scope", "SelectedClaims", "clientId" };
-            foreach (var property in request.EnumerateObject())
-            {
-                if (!allowed.Contains(property.Name))
-                {
-                    return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
-                }
-            }
-
             PresentationRequest? model;
             try
             {
@@ -94,15 +85,6 @@ namespace Credential.Controllers
             if (request.ValueKind != JsonValueKind.Object)
             {
                 return Ok(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
-            }
-
-            var allowed = new HashSet<string> { "VerifiablePresentation" };
-            foreach (var property in request.EnumerateObject())
-            {
-                if (!allowed.Contains(property.Name))
-                {
-                    return BadRequest(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
-                }
             }
 
             VerifyPresentationRequest? model;

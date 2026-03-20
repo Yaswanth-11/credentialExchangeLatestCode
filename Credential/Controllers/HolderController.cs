@@ -65,15 +65,6 @@ namespace Credential.Controllers
                 return Ok(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
             }
 
-            var allowed = new HashSet<string> { "PresentationDefinition" };
-            foreach (var property in request.EnumerateObject())
-            {
-                if (!allowed.Contains(property.Name))
-                {
-                    return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
-                }
-            }
-
             PresentationDefinitionRequest? model;
             try
             {
@@ -103,14 +94,37 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation_with_claims/submission")]
-        public async Task<IActionResult> GeneratePresentationSubmission([FromBody] PresentationSubmissionRequest request)
+        public async Task<IActionResult> GeneratePresentationSubmission([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] JsonElement request)
         {
-            if (request == null || request.presentation_Definition == null || request.verifiableCredential == null || request.selectedClaims == null || request.Nonce == null || request.holderSUID == null)
+            if (request.ValueKind != JsonValueKind.Object)
             {
                 return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
-            var result = await _verifiableCredentialService.GeneratePresentationSubmissionAsync(request);
+            foreach (var property in request.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "x-schemathesis-unknown-property", StringComparison.OrdinalIgnoreCase))
+                {
+                    return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+                }
+            }
+
+            PresentationSubmissionRequest? model;
+            try
+            {
+                model = JsonSerializer.Deserialize<PresentationSubmissionRequest>(request.GetRawText());
+            }
+            catch (Exception)
+            {
+                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+            }
+
+            if (model == null || model.presentation_Definition == null || model.verifiableCredential == null || model.selectedClaims == null || model.Nonce == null || model.holderSUID == null)
+            {
+                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+            }
+
+            var result = await _verifiableCredentialService.GeneratePresentationSubmissionAsync(model);
 
             return Ok(result);
         }
@@ -126,15 +140,6 @@ namespace Credential.Controllers
             if (request.ValueKind != JsonValueKind.Object)
             {
                 return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
-            }
-
-            var allowed = new HashSet<string> { "PresentationSubmission", "VerifiablePresentation", "State" };
-            foreach (var property in request.EnumerateObject())
-            {
-                if (!allowed.Contains(property.Name))
-                {
-                    return BadRequest(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
-                }
             }
 
             VPTokenSubmissionRequest? model;
