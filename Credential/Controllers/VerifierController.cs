@@ -6,6 +6,7 @@ using Credential.Services.Interface;
 using Microsoft.AspNetCore.Cors;
 using Lux.Infrastructure;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Credential.Controllers
 {
@@ -60,9 +61,14 @@ namespace Credential.Controllers
             return Ok(new ServiceResult(true, "Request URI generated successfully.", 0, "", result));
         }
 
-        [HttpGet("presentation/verify/result/{transactionId:regex(^[A-Za-z0-9_-]+$)}")]
+        [HttpGet("presentation/verify/result/{transactionId}")]
         public async Task<IActionResult> VerifyPresentationResponse(string transactionId)
         {
+            if (string.IsNullOrWhiteSpace(transactionId) || !Regex.IsMatch(transactionId, "^[A-Za-z0-9_-]+$"))
+            {
+                return NotFound(new { success = false, message = "Transaction data not found." });
+            }
+
             if (transactionId == null)
             {
                 throw new LxException("'transactionId' is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
@@ -111,9 +117,14 @@ namespace Credential.Controllers
             return Ok(result);
         }
 
-        [HttpGet("presentation/verify/result_with_vptoken/{transactionId:regex(^[A-Za-z0-9_-]+$)}")]
+        [HttpGet("presentation/verify/result_with_vptoken/{transactionId}")]
         public async Task<IActionResult> VerifyPresentationResponse_with_vptoken(string transactionId)
         {
+            if (string.IsNullOrWhiteSpace(transactionId) || !Regex.IsMatch(transactionId, "^[A-Za-z0-9_-]+$"))
+            {
+                return NotFound(new { success = false, message = "Transaction data not found." });
+            }
+
             if (!ModelState.IsValid)
             {
                 throw new LxException("Invalid request body", LxErrorCodes.E_UNSPECIFIED_ERROR);

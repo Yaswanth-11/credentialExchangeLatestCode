@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cors;
 using Lux.Infrastructure;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Credential.Controllers
 {
@@ -31,9 +32,14 @@ namespace Credential.Controllers
         }
 
         // Get Request Object by Transaction ID
-        [HttpGet("presentation/requestObject/{transaction_id:regex(^[A-Za-z0-9_-]+$)}")]
+        [HttpGet("presentation/requestObject/{transaction_id}")]
         public async Task<ServiceResult> GetRequestObjectAsync(string transaction_id)
         {
+            if (string.IsNullOrWhiteSpace(transaction_id) || !Regex.IsMatch(transaction_id, "^[A-Za-z0-9_-]+$"))
+            {
+                return new ServiceResult(false, "Request object not found for transaction ID", 404, "Not Found", transaction_id);
+            }
+
             if (transaction_id == null)
             {
                 throw new LxException("transaction_id should not be null", LxErrorCodes.E_UNSPECIFIED_ERROR);

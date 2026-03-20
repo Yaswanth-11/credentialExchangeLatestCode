@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Lux.Infrastructure;
 using Microsoft.AspNetCore.Cors;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Credential.Controllers
 {  
@@ -81,10 +82,15 @@ namespace Credential.Controllers
             return Ok(serviceResult);
         }
 
-        [HttpGet("getPresentationDefinition/{transactionId:regex(^[A-Za-z0-9_-]+$)}")]
+        [HttpGet("getPresentationDefinition/{transactionId}")]
         public IActionResult getPresentationDefinition(string transactionId)
         {
             _logger.LogInformation("Fetching PresentationDefinition for transactionId: {TransactionId}", transactionId);
+
+            if (string.IsNullOrWhiteSpace(transactionId) || !Regex.IsMatch(transactionId, "^[A-Za-z0-9_-]+$"))
+            {
+                return NotFound(new ServiceResult(false, "Transaction ID not found or expired.", 404, "Not Found", null));
+            }
 
             if (string.IsNullOrEmpty(transactionId))
             {
@@ -167,9 +173,14 @@ namespace Credential.Controllers
         }
 
         [HttpGet]
-        [Route("getISO/{transactionId:regex(^[A-Za-z0-9_-]+$)}")]
+        [Route("getISO/{transactionId}")]
         public async Task<IActionResult> getISO(string transactionId)
         {
+            if (string.IsNullOrWhiteSpace(transactionId) || !Regex.IsMatch(transactionId, "^[A-Za-z0-9_-]+$"))
+            {
+                return NotFound(new ServiceResult(false, "Data Not Yet Posted.", 404, "Not Found", null));
+            }
+
             try
             {
                 return Ok(await _verifiableCredentialService.getISO(transactionId));
