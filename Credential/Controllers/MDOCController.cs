@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Lux.Infrastructure;
 using Microsoft.AspNetCore.Cors;
+using System.Text.Json;
 
 namespace Credential.Controllers
 {  
@@ -29,14 +30,62 @@ namespace Credential.Controllers
         }
 
         [HttpPost("prepareRequestURI")]
-        public IActionResult prepareRequestURI([FromBody] DocumentRequest request)
+        public IActionResult prepareRequestURI([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] JsonElement request)
         {
-            if (request == null || string.IsNullOrEmpty(request.DocumentType) || request.Claims == null || request.Claims.Count == 0)
+            if (request.ValueKind != JsonValueKind.Object)
+            {
+                return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+            }
+
+            var allowed = new HashSet<string> { "DocumentType", "Claims" };
+            foreach (var property in request.EnumerateObject())
+            {
+                if (!allowed.Contains(property.Name))
+                {
+                    return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+                }
+            }
+
+            string? documentType = null;
+            if (request.TryGetProperty("DocumentType", out var documentTypeElement) && documentTypeElement.ValueKind == JsonValueKind.String)
+            {
+                documentType = documentTypeElement.GetString();
+            }
+
+            Dictionary<string, List<string>>? claims = null;
+            if (request.TryGetProperty("Claims", out var claimsElement) && claimsElement.ValueKind == JsonValueKind.Object)
+            {
+                claims = new Dictionary<string, List<string>>();
+                foreach (var claimProperty in claimsElement.EnumerateObject())
+                {
+                    if (claimProperty.Value.ValueKind != JsonValueKind.Array)
+                    {
+                        continue;
+                    }
+
+                    var values = new List<string>();
+                    foreach (var item in claimProperty.Value.EnumerateArray())
+                    {
+                        if (item.ValueKind == JsonValueKind.String)
+                        {
+                            var value = item.GetString();
+                            if (!string.IsNullOrEmpty(value))
+                            {
+                                values.Add(value);
+                            }
+                        }
+                    }
+
+                    claims[claimProperty.Name] = values;
+                }
+            }
+
+            if (string.IsNullOrEmpty(documentType) || claims == null || claims.Count == 0)
             {
                 return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
-            var serviceResult = _verifiableCredentialService.prepareRequestURI(request.DocumentType, request.Claims);
+            var serviceResult = _verifiableCredentialService.prepareRequestURI(documentType, claims);
             _logger.LogInformation("Successfully generated Presentation Definition.");
             return Ok(serviceResult);
         }
@@ -102,27 +151,27 @@ namespace Credential.Controllers
         }
 
         [HttpPost("postISO/{transactionId}")]
-        public ServiceResult postISO(string transactionId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object requestData)
+        public IActionResult postISO(string transactionId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object requestData)
         {
             _logger.LogInformation("Saving MDOC request for transactionId: {TransactionId}", transactionId);
 
             if (string.IsNullOrEmpty(transactionId))
             {
-                throw new LxException("TransactionId is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                return NotFound(new ServiceResult(false, "TransactionId is required.", 404, "Not Found", null));
             }
 
             if (requestData == null)
             {
-                return new ServiceResult(false, "Request body is missing.", 400, "Invalid request body", null);
+                return BadRequest(new ServiceResult(false, "Request body is missing.", 400, "Invalid request body", null));
             }
 
             try
             {
-                return _verifiableCredentialService.postISO(transactionId, requestData);
+                return Ok(_verifiableCredentialService.postISO(transactionId, requestData));
             }
             catch (LxException ex)
             {
-                return new ServiceResult(false, ex.Message, 400, "Invalid request body", null);
+                return NotFound(new ServiceResult(false, ex.Message, 404, "Not Found", null));
             }
         }
 

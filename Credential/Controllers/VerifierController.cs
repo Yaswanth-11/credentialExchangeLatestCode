@@ -1,9 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Credential.Models;
 using System.Threading.Tasks;
 using Credential.Services.Interface;
 using Microsoft.AspNetCore.Cors;
 using Lux.Infrastructure;
+using System.Text.Json;
 
 namespace Credential.Controllers
 {
@@ -29,14 +31,38 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation/request/uri")]
-        public async Task<IActionResult> GenerateRequestUri([FromBody] PresentationRequest request)
+        public async Task<IActionResult> GenerateRequestUri([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] JsonElement request)
         {
-            if (request == null || request.Type == null || request.Scope == null || request.SelectedClaims == null)
+            if (request.ValueKind != JsonValueKind.Object)
+            {
+                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
+            }
+
+            var allowed = new HashSet<string> { "Type", "Scope", "SelectedClaims", "clientId" };
+            foreach (var property in request.EnumerateObject())
+            {
+                if (!allowed.Contains(property.Name))
+                {
+                    return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
+                }
+            }
+
+            PresentationRequest? model;
+            try
+            {
+                model = JsonSerializer.Deserialize<PresentationRequest>(request.GetRawText());
+            }
+            catch (Exception)
             {
                 return Ok(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
             }
 
-            var result = await _verifiableCredentialService.GenerateRequestUriAsync(request);
+            if (model == null || model.Type == null || model.Scope == null || model.SelectedClaims == null)
+            {
+                return Ok(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
+            }
+
+            var result = await _verifiableCredentialService.GenerateRequestUriAsync(model);
             _logger.LogInformation("Request URI generated successfully.");
             return Ok(new ServiceResult(true, "Request URI generated successfully.", 0, "", result));
         }
@@ -63,14 +89,38 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation/verify/result")]
-        public async Task<IActionResult> VerifyPresentationFromVpToken([FromBody] VerifyPresentationRequest request)
+        public async Task<IActionResult> VerifyPresentationFromVpToken([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] JsonElement request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.VerifiablePresentation))
+            if (request.ValueKind != JsonValueKind.Object)
+            {
+                return BadRequest(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
+            }
+
+            var allowed = new HashSet<string> { "VerifiablePresentation" };
+            foreach (var property in request.EnumerateObject())
+            {
+                if (!allowed.Contains(property.Name))
+                {
+                    return BadRequest(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
+                }
+            }
+
+            VerifyPresentationRequest? model;
+            try
+            {
+                model = JsonSerializer.Deserialize<VerifyPresentationRequest>(request.GetRawText());
+            }
+            catch (Exception)
             {
                 return Ok(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
             }
 
-            var result = await _verifiableCredentialService.VerifyPresentationFromVpTokenAsync(request.VerifiablePresentation);
+            if (model == null || string.IsNullOrWhiteSpace(model.VerifiablePresentation))
+            {
+                return Ok(new ServiceResult(false, "Invalid Verifiable Presentation provided.", 400, "Invalid request body", null));
+            }
+
+            var result = await _verifiableCredentialService.VerifyPresentationFromVpTokenAsync(model.VerifiablePresentation);
             _logger.LogInformation("Presentation response verified successfully.");
             return Ok(result);
         }

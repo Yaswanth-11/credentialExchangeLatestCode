@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Cors;
 using Lux.Infrastructure;
+using System.Text.Json;
 
 namespace Credential.Controllers
 {
@@ -57,9 +58,33 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation/definition/claims")]
-        public async Task<IActionResult> ParsePresentationDefinitionAsync([FromBody] PresentationDefinitionRequest request)
+        public async Task<IActionResult> ParsePresentationDefinitionAsync([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] JsonElement request)
         {
-            if (request == null || request.PresentationDefinition == null)
+            if (request.ValueKind != JsonValueKind.Object)
+            {
+                return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
+            }
+
+            var allowed = new HashSet<string> { "PresentationDefinition" };
+            foreach (var property in request.EnumerateObject())
+            {
+                if (!allowed.Contains(property.Name))
+                {
+                    return BadRequest(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
+                }
+            }
+
+            PresentationDefinitionRequest? model;
+            try
+            {
+                model = JsonSerializer.Deserialize<PresentationDefinitionRequest>(request.GetRawText());
+            }
+            catch (Exception)
+            {
+                return Ok(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
+            }
+
+            if (model == null || model.PresentationDefinition == null)
             {
                 return Ok(new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null));
             }
@@ -67,7 +92,7 @@ namespace Credential.Controllers
             object result;
             try
             {
-                result = await _verifiableCredentialService.ParsePresentationDefinitionAsync(request.PresentationDefinition);
+                result = await _verifiableCredentialService.ParsePresentationDefinitionAsync(model.PresentationDefinition);
             }
             catch (Exception)
             {
@@ -82,7 +107,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.presentation_Definition == null || request.verifiableCredential == null || request.selectedClaims == null || request.Nonce == null || request.holderSUID == null)
             {
-                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
+                return BadRequest(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.GeneratePresentationSubmissionAsync(request);
@@ -91,14 +116,43 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation/response/{transaction_id}")]
-        public async Task<IActionResult> SubmitVpTokenAsync(string transaction_id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] VPTokenSubmissionRequest request)
+        public async Task<IActionResult> SubmitVpTokenAsync(string transaction_id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] JsonElement request)
         {
-            if (request == null)
+            if (request.ValueKind == JsonValueKind.Null || request.ValueKind == JsonValueKind.Undefined)
             {
                 return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
             }
 
-            if (request.VerifiablePresentation == null || request.PresentationSubmission == null)
+            if (request.ValueKind != JsonValueKind.Object)
+            {
+                return BadRequest(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
+            }
+
+            var allowed = new HashSet<string> { "PresentationSubmission", "VerifiablePresentation", "State" };
+            foreach (var property in request.EnumerateObject())
+            {
+                if (!allowed.Contains(property.Name))
+                {
+                    return BadRequest(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
+                }
+            }
+
+            VPTokenSubmissionRequest? model;
+            try
+            {
+                model = JsonSerializer.Deserialize<VPTokenSubmissionRequest>(request.GetRawText());
+            }
+            catch (Exception)
+            {
+                return BadRequest(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
+            }
+
+            if (model == null)
+            {
+                return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
+            }
+
+            if (model.VerifiablePresentation == null || model.PresentationSubmission == null)
             {
                 return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
             }
@@ -106,15 +160,15 @@ namespace Credential.Controllers
             try
             {
                 await _verifiableCredentialService.SubmitVpTokenAsync(
-                    request.PresentationSubmission,
-                    request.VerifiablePresentation,
-                    request.State,
+                    model.PresentationSubmission,
+                    model.VerifiablePresentation,
+                    model.State,
                     transaction_id
                 );
             }
             catch (Exception ex)
             {
-                return BadRequest(new ServiceResult(false, ex.Message, 400, "Invalid request body", null));
+                return NotFound(new ServiceResult(false, ex.Message, 404, "Not Found", null));
             }
 
             _logger.LogInformation("vp token submission successful");
