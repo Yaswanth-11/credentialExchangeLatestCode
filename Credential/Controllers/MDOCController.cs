@@ -33,7 +33,7 @@ namespace Credential.Controllers
         {
             if (request == null || string.IsNullOrEmpty(request.DocumentType) || request.Claims == null || request.Claims.Count == 0)
             {
-                throw new LxException("Invalid request body", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                return new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null);
             }
 
             var serviceResult = _verifiableCredentialService.prepareRequestURI(request.DocumentType, request.Claims);
@@ -42,7 +42,7 @@ namespace Credential.Controllers
         }
 
         [HttpGet("getPresentationDefinition/{transactionId}")]
-        public ServiceResult getPresentationDefinition(string transactionId)
+        public IActionResult getPresentationDefinition(string transactionId)
         {
             _logger.LogInformation("Fetching PresentationDefinition for transactionId: {TransactionId}", transactionId);
 
@@ -51,7 +51,14 @@ namespace Credential.Controllers
                 throw new LxException("Transaction ID is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
 
-            return _verifiableCredentialService.getPresentationDefinition(transactionId);
+            try
+            {
+                return Ok(_verifiableCredentialService.getPresentationDefinition(transactionId));
+            }
+            catch (LxException)
+            {
+                return NotFound(new ServiceResult(false, "Transaction ID not found or expired.", 404, "Not Found", null));
+            }
         }
 
         [HttpPost("parsePresentationDefinition")]
@@ -64,7 +71,14 @@ namespace Credential.Controllers
                 return new ServiceResult(false, "Request body is required.", 400, "Invalid request body", null);
             }
 
-            return _verifiableCredentialService.parsePresentationDefinition(requestData);
+            try
+            {
+                return _verifiableCredentialService.parsePresentationDefinition(requestData);
+            }
+            catch (LxException ex)
+            {
+                return new ServiceResult(false, ex.Message, 400, "Invalid request body", null);
+            }
         }
 
         [HttpPost("parseISO")]
@@ -77,7 +91,14 @@ namespace Credential.Controllers
                 return new ServiceResult(false, "Request body is required.", 400, "Invalid request body", null);
             }
 
-            return _verifiableCredentialService.parseISO(RequestData);
+            try
+            {
+                return _verifiableCredentialService.parseISO(RequestData);
+            }
+            catch (LxException ex)
+            {
+                return new ServiceResult(false, ex.Message, 400, "Invalid request body", null);
+            }
         }
 
         [HttpPost("postISO/{transactionId}")]
@@ -95,14 +116,28 @@ namespace Credential.Controllers
                 return new ServiceResult(false, "Request body is missing.", 400, "Invalid request body", null);
             }
 
-            return _verifiableCredentialService.postISO(transactionId, requestData);
+            try
+            {
+                return _verifiableCredentialService.postISO(transactionId, requestData);
+            }
+            catch (LxException ex)
+            {
+                return new ServiceResult(false, ex.Message, 400, "Invalid request body", null);
+            }
         }
 
         [HttpGet]
         [Route("getISO/{transactionId}")]
-        public async Task<ServiceResult> getISO(string transactionId)
+        public async Task<IActionResult> getISO(string transactionId)
         {
-            return await _verifiableCredentialService.getISO(transactionId);
+            try
+            {
+                return Ok(await _verifiableCredentialService.getISO(transactionId));
+            }
+            catch (LxException)
+            {
+                return NotFound(new ServiceResult(false, "Data Not Yet Posted.", 404, "Not Found", null));
+            }
         }
     }
 }

@@ -61,7 +61,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.PresentationDefinition == null)
             {
-                throw new LxException("Invalid request body. 'PresentationDefinition' is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                return new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null);
             }
 
             object result;
@@ -71,7 +71,7 @@ namespace Credential.Controllers
             }
             catch (Exception)
             {
-                throw new LxException("Invalid request body. 'PresentationDefinition' is required.", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                return new ServiceResult(false, "Invalid request body. 'PresentationDefinition' is required.", 400, "Invalid request body", null);
             }
 
             return new ServiceResult(true, "Presentationdefinition parsed successfully", 0, "", result);
@@ -82,7 +82,7 @@ namespace Credential.Controllers
         {
             if (request == null || request.presentation_Definition == null || request.verifiableCredential == null || request.selectedClaims == null || request.Nonce == null || request.holderSUID == null)
             {
-                throw new LxException("Invalid request body", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                return Ok(new ServiceResult(false, "Invalid request body", 400, "Invalid request body", null));
             }
 
             var result = await _verifiableCredentialService.GeneratePresentationSubmissionAsync(request);
@@ -91,22 +91,29 @@ namespace Credential.Controllers
         }
 
         [HttpPost("presentation/response/{transaction_id}")]
-        public async Task<ServiceResult> SubmitVpTokenAsync(string transaction_id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] VPTokenSubmissionRequest request)
+        public async Task<IActionResult> SubmitVpTokenAsync(string transaction_id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] VPTokenSubmissionRequest request)
         {
             if (request == null || request.VerifiablePresentation == null || request.PresentationSubmission == null)
             {
-                return new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null);
+                return BadRequest(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
             }
 
-            await _verifiableCredentialService.SubmitVpTokenAsync(
-                request.PresentationSubmission,
-                request.VerifiablePresentation,
-                request.State,
-                transaction_id
-            );
+            try
+            {
+                await _verifiableCredentialService.SubmitVpTokenAsync(
+                    request.PresentationSubmission,
+                    request.VerifiablePresentation,
+                    request.State,
+                    transaction_id
+                );
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new ServiceResult(false, ex.Message, 400, "Invalid request body", null));
+            }
 
             _logger.LogInformation("vp token submission successful");
-            return new ServiceResult(true, "VP token submission successful.", 0, "", "200 OK");
+            return Ok(new ServiceResult(true, "VP token submission successful.", 0, "", "200 OK"));
         }
     }
 }

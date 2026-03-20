@@ -99,6 +99,28 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowAll");
 
+app.UseStatusCodePages(async statusCodeContext =>
+{
+    var response = statusCodeContext.HttpContext.Response;
+    if (response.HasStarted)
+    {
+        return;
+    }
+
+    if (response.ContentLength.HasValue && response.ContentLength.Value > 0)
+    {
+        return;
+    }
+
+    response.ContentType = "application/json";
+    var payload = JsonSerializer.Serialize(new
+    {
+        success = false,
+        message = $"HTTP {response.StatusCode}"
+    });
+    await response.WriteAsync(payload);
+});
+
 // Global exception handling middleware - must be before routing/controllers
 app.UseMiddleware<Credential.Middleware.GlobalExceptionMiddleware>();
 
