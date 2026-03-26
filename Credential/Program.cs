@@ -1,4 +1,5 @@
 using Credential.Models;
+using Credential.RedisDB;
 using Credential.Services;
 using Credential.Services.Interface;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -40,6 +41,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
 
 // Register VerifiableCredentialService and HttpClient
 builder.Services.AddHttpClient<IVerifiableCredentialService, VerifiableCredentialService>();
+builder.Services.AddScoped<IRedisTransactionStore, RedisTransactionStore>();
 
 // Optionally, adjust service lifetime for VerifiableCredentialService
 // builder.Services.AddScoped<IVerifiableCredentialService, VerifiableCredentialService>();

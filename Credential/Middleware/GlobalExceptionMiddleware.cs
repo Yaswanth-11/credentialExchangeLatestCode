@@ -1,4 +1,5 @@
 using Credential.Models;
+using Credential.Models.Exceptions;
 using Lux.Infrastructure;
 using System.Net;
 using System.Text.Json;
@@ -72,6 +73,18 @@ namespace Credential.Middleware
                     nameof(KeyNotFoundException), context.Request.Path, context.TraceIdentifier);
 
                 context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                context.Response.ContentType = "application/json";
+
+                await context.Response.WriteAsync(
+                    JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
+            }
+            catch (TransactionStateException ex)
+            {
+                _logger.LogWarning(ex,
+                    "TransactionStateException occurred. ExceptionType={ExceptionType} ErrorType={ErrorType} TransactionId={TransactionId} Key={Key} Path={Path} TraceId={TraceId}",
+                    nameof(TransactionStateException), ex.ErrorType, ex.TransactionId, ex.Key, context.Request.Path, context.TraceIdentifier);
+
+                context.Response.StatusCode = (int)HttpStatusCode.Gone;
                 context.Response.ContentType = "application/json";
 
                 await context.Response.WriteAsync(

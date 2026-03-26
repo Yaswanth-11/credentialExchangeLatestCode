@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.Configuration;
 using StackExchange.Redis;
 using Credential.Models;
+using Credential.Models.Exceptions;
+using Credential.RedisDB;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -24,26 +26,33 @@ namespace Credential.Services
 {
     public class VerifiableCredentialService : IVerifiableCredentialService
     {
-        private readonly IConnectionMultiplexer _redisConnection;
         private readonly IConfiguration _configuration;
         private readonly IDatabase _redisDb;
+        private readonly IRedisTransactionStore _redisTransactionStore;
         private readonly string _nodeJsApiUrl;
         private readonly string _pvtUrl;
         private readonly string apiBaseUrl;
         private readonly HttpClient _httpClient;
-       
+        private readonly TimeSpan _transactionDataTtl;
+
 
         public ILogger<VerifiableCredentialService> _logger { get; }
 
-        public VerifiableCredentialService(IConfiguration configuration, IConnectionMultiplexer redisConnection, HttpClient httpClient, ILogger<VerifiableCredentialService> logger)
+        public VerifiableCredentialService(
+            IConfiguration configuration,
+            IConnectionMultiplexer redisConnection,
+            IRedisTransactionStore redisTransactionStore,
+            HttpClient httpClient,
+            ILogger<VerifiableCredentialService> logger)
         {
             _configuration = configuration;
             _redisDb = redisConnection.GetDatabase();
+            _redisTransactionStore = redisTransactionStore;
             _pvtUrl = _configuration["PvtSettings:PVTURL"];
             apiBaseUrl= _configuration["ApiSettings:OrgDetailsBaseUrl"];
             _httpClient = httpClient;
-           
-            _redisConnection = redisConnection;
+            var ttlMinutes = _configuration.GetValue<int?>("RedisSettings:TransactionDataTtlMinutes").GetValueOrDefault(5);
+            _transactionDataTtl = TimeSpan.FromMinutes(ttlMinutes > 0 ? ttlMinutes : 5);
             _logger = logger;
 
         }
@@ -197,7 +206,13 @@ namespace Credential.Services
                 _logger.LogError($"Failed to fetch org details: {authRequestObj}");
 
                 var jsonAuthRequestObj = Newtonsoft.Json.JsonConvert.SerializeObject(authRequestObj);
-                await _redisDb.StringSetAsync(transactionId, jsonAuthRequestObj);
+
+                await _redisTransactionStore.StoreStringAsync(
+                    transactionId,
+                    transactionId,
+                    jsonAuthRequestObj,
+                    "presentation-auth-request");
+
                 // Log serialized data
                 _logger.LogInformation("preparing request URI was successful");
 
@@ -205,7 +220,7 @@ namespace Credential.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError("Error preparing request URI", ex.Message);
+                _logger.LogError(ex, "Error preparing request URI");
                 throw new Exception("Error preparing request URI", ex);
             }
         }
@@ -213,16 +228,18 @@ namespace Credential.Services
         {
             try
             {
-                var value = await _redisDb.StringGetAsync(transactionId);
+                var requestObject = await _redisTransactionStore.GetRequiredObjectAsync<AuthRequestObject>(
+                    transactionId,
+                    transactionId,
+                    "presentation-auth-request");
 
-                if (value.IsNullOrEmpty)
-                {
-                    throw new Exception($"Request object not found for transaction ID: {transactionId}");
-                }
-
-                var requestObject = JsonConvert.DeserializeObject<AuthRequestObject>(value);
                 _logger.LogInformation("fetchrequestobject was successful");
                 return requestObject;
+
+            }
+            catch (TransactionStateException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -316,6 +333,12 @@ namespace Credential.Services
 
                 // Deserialize the raw response into a dynamic object to examine its structure
                 ServiceResult deserializedDynamicResponse = JsonConvert.DeserializeObject<ServiceResult>(verifiablePresentationResponse.ToString());
+
+                if (!deserializedDynamicResponse.Success)
+                {
+                    _logger.LogError("Error returned from node js service call");
+                    throw new Exception("Error generating Presentation Submission");
+                }
 
                 // Deserialize into the VerifiablePresentation model
                 var SerializeverifiablePresentation = JsonConvert.SerializeObject(deserializedDynamicResponse.Result);
@@ -417,7 +440,7 @@ namespace Credential.Services
                 catch (Exception ex)
                 {
                     // Log any exceptions that occur
-                    throw;
+                    //throw;
                     _logger.LogError("Error in  callnodejs holdervp api {0}", ex.Message);
                     throw new Exception("Error in  callnodejs holdervp api", ex);
                 }
@@ -441,14 +464,22 @@ namespace Credential.Services
             if (string.IsNullOrEmpty(transactionId))
                 throw new Exception("transactionId parameter is missing");
 
-            // Retrieve the request object from Redis
-            var requestObjectJson = await _redisDb.StringGetAsync(transactionId);
-
-            if (string.IsNullOrEmpty(requestObjectJson))
-            throw new Exception("Invalid Transaction ID.");
+            var requestObjectJson = await _redisTransactionStore.GetRequiredStringAsync(
+                transactionId,
+                transactionId,
+                "presentation-auth-request");
 
             // Deserialize the request object
-            var requestObject = JsonConvert.DeserializeObject<dynamic>(requestObjectJson);
+            dynamic requestObject;
+            try
+            {
+                requestObject = JsonConvert.DeserializeObject<dynamic>(requestObjectJson)
+                    ?? throw TransactionStateException.DeserializationFailed(transactionId, transactionId);
+            }
+            catch (Newtonsoft.Json.JsonException ex)
+            {
+                throw TransactionStateException.DeserializationFailed(transactionId, transactionId, ex);
+            }
 
             // Extract the presentation definition and state from the request object
             var presentationDefinition = requestObject?.presentation_definition;
@@ -506,7 +537,13 @@ namespace Credential.Services
 
             // Serialize the complete data to JSON and store in Redis
             var completeDataJson = JsonConvert.SerializeObject(completeData);
-            await _redisDb.StringSetAsync(transactionId, completeDataJson);
+
+            await _redisTransactionStore.StoreStringAsync(
+                transactionId,
+                transactionId,
+                completeDataJson,
+                "presentation-submission");
+
             _logger.LogInformation("presentation submission,vptoken are stored in redis.");
  
         }
@@ -535,15 +572,23 @@ namespace Credential.Services
         {
             try
             {
-                // Fetch the value from Redis
-                var redisValue = await _redisDb.StringGetAsync(transactionId);
-                if (string.IsNullOrEmpty(redisValue))
+                var redisValue = await _redisTransactionStore.GetRequiredStringAsync(
+                    transactionId,
+                    transactionId,
+                    "presentation-response");
+
+                dynamic presentationResponse;
+                try
                 {
-                    _logger.LogError("Invalid Transaction ID or data not found.");
-                    throw new Exception("Invalid Transaction ID or data not found.");
+                    presentationResponse = JsonConvert.DeserializeObject<dynamic>(redisValue)
+                        ?? throw TransactionStateException.DeserializationFailed(transactionId, transactionId);
                 }
-                // Deserialize the Redis data
-                var presentationResponse = JsonConvert.DeserializeObject<dynamic>(redisValue);
+                catch (Newtonsoft.Json.JsonException ex)
+                {
+                    _logger.LogError(ex, "Failed to deserialize presentation response for transactionId: {TransactionId}", transactionId);
+                    throw TransactionStateException.DeserializationFailed(transactionId, transactionId, ex);
+                }
+
                 object verifyResultResponse = "Data not yet posted";
                 JToken attributesList = null;
 
@@ -566,8 +611,10 @@ namespace Credential.Services
                     _logger.LogInformation("response from vptokenm url of nodejs is processing...");
                     if (IsSuccessResponse(verifyResultResponse))
                     {
-                        await _redisDb.KeyDeleteAsync(transactionId);
-                        _logger.LogError("removed redis data corresponding to transactionId");
+                        await _redisTransactionStore.DeleteIfExistsAsync(
+                            transactionId,
+                            transactionId,
+                            "presentation-response");
                     }
                     return verifyResultResponse;
                 }
@@ -577,9 +624,13 @@ namespace Credential.Services
                     return new ServiceResult(false, "Invalid presentation response format.", 0, "", null);
                 }
             }
+            catch (TransactionStateException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                _logger.LogError("Error verifying presentation response", ex.Message);
+                _logger.LogError(ex, "Error verifying presentation response");
                 throw new Exception("Error verifying presentation response", ex);
             }
         }
@@ -706,19 +757,21 @@ namespace Credential.Services
         {
             try
             {
-                // Fetch the value from Redis
-                var redisValue = await _redisDb.StringGetAsync(transactionId);
-                if (string.IsNullOrEmpty(redisValue))
+                var redisValue = await _redisTransactionStore.GetRequiredStringAsync(
+                    transactionId,
+                    transactionId,
+                    "presentation-response");
+
+                dynamic presentationResponse;
+                try
                 {
-                    _logger.LogError("Invalid Transaction ID or data not found.");
-                    var result = new ServiceResult(false, "Invalid Transaction ID or data not found.", 400, "", null);
-
-                    // Serialize to JSON string and return
-                    return JsonConvert.SerializeObject(result);
+                    presentationResponse = JsonConvert.DeserializeObject<dynamic>(redisValue)
+                        ?? throw TransactionStateException.DeserializationFailed(transactionId, transactionId);
                 }
-
-                // Deserialize the Redis data
-                var presentationResponse = JsonConvert.DeserializeObject<dynamic>(redisValue);
+                catch (Newtonsoft.Json.JsonException ex)
+                {
+                    throw TransactionStateException.DeserializationFailed(transactionId, transactionId, ex);
+                }
 
                 // Case: Data not yet posted
                 if (presentationResponse?.presentation_submission == null &&
@@ -753,6 +806,12 @@ namespace Credential.Services
                     return JsonConvert.SerializeObject(result2);
                    
                 }
+            }
+            catch (TransactionStateException ex)
+            {
+                _logger.LogWarning(ex, "Invalid or expired transaction while verifying by id. TransactionId={TransactionId}", transactionId);
+                var result = new ServiceResult(false, ex.Message, 400, "", null);
+                return JsonConvert.SerializeObject(result);
             }
             catch (Exception ex)
             {
@@ -821,7 +880,19 @@ namespace Credential.Services
             }
         };
 
-                _redisDb.StringSet(transactionId, JsonConvert.SerializeObject(presentationDefinition));
+                var setOk = _redisDb.StringSet(
+                    transactionId,
+                    JsonConvert.SerializeObject(presentationDefinition),
+                    expiry: _transactionDataTtl,
+                    when: When.Always);
+                if (!setOk)
+                {
+                    throw TransactionStateException.StorageFailed(transactionId, transactionId);
+                }
+                _logger.LogInformation(
+                    "Stored mdoc presentation definition in Redis. TransactionId={TransactionId} TTL={Ttl}",
+                    transactionId,
+                    _transactionDataTtl);
 
                 transactionUrl = $"{_configuration["ApiSettings:MdocUrl"]}/api/mdoc/getPresentationDefinition/{transactionId}";
 
@@ -845,27 +916,25 @@ namespace Credential.Services
         {
             try
             {
-                if (!_redisDb.KeyExists(transactionId))
-                {
-                    _logger.LogWarning("Transaction ID {transactionId} does not exist in Redis.");
-                    throw new LxException("Transaction ID not found or expired.", LxErrorCodes.E_INVALID_REQUEST);
-                }
+                var data = _redisTransactionStore
+                    .ConsumeRequiredStringAsync(transactionId, transactionId, "mdoc-presentation-definition")
+                    .GetAwaiter()
+                    .GetResult();
 
-                var data = _redisDb.StringGet(transactionId);
-                if (data.HasValue)
-                {
-                    string URL = $"{_configuration["ApiSettings:MdocUrl"]}/api/mdoc/postISO/{transactionId}";
+                string URL = $"{_configuration["ApiSettings:MdocUrl"]}/api/mdoc/postISO/{transactionId}";
 
-                    var responseObject = new
-                    {
-                       presentationDefinition = (data.ToString()),
-                        responseURI = URL
-                    };
-                    _redisDb.KeyDelete(transactionId);
-                    _logger.LogInformation("Deleted Redis key: {transactionId}", transactionId);
-                    return new ServiceResult(true, "Presentation data fetched successfully", 0, "Success", responseObject);
-                }
-                throw new LxException("Transaction ID not found or expired", LxErrorCodes.E_UNSPECIFIED_ERROR);
+                var responseObject = new
+                {
+                    presentationDefinition = data,
+                    responseURI = URL
+                };
+
+                return new ServiceResult(true, "Presentation data fetched successfully", 0, "Success", responseObject);
+            }
+            catch (TransactionStateException ex)
+            {
+                _logger.LogWarning(ex, "Transaction not found or expired while fetching mdoc presentation definition. TransactionId={TransactionId}", transactionId);
+                throw new LxException(ex.Message, LxErrorCodes.E_INVALID_REQUEST);
             }
             catch (LxException ex)
             {
@@ -999,7 +1068,10 @@ namespace Credential.Services
                 }
 
                 string QRDataKey = $"qrData:{presentationId}";
-                _redisDb.StringSet(QRDataKey, qrDataString);
+                _redisTransactionStore
+                    .StoreStringAsync(QRDataKey, presentationId, qrDataString, "mdoc-qr-data")
+                    .GetAwaiter()
+                    .GetResult();
 
                 LX_MDOC_DATA mdocData = new LX_MDOC_DATA();
                 PKIMethods.Instance.PKIParseMDOCDeviceEngagement(qrDataString, ref mdocData);
@@ -1009,7 +1081,10 @@ namespace Credential.Services
                 string jsonData = JsonConvert.SerializeObject(modifiedPresentationDefinition);
 
                 string MPresentationDefinitionKey = $"jsonData:{presentationId}";
-                _redisDb.StringSet(MPresentationDefinitionKey, jsonData);
+                _redisTransactionStore
+                    .StoreStringAsync(MPresentationDefinitionKey, presentationId, jsonData, "mdoc-presentation-json")
+                    .GetAwaiter()
+                    .GetResult();
 
                 byte[] mdocRequest = null;
                 PKIMethods.Instance.PKIPrepareMDOCRequests(jsonData, ref mdocRequest);
@@ -1028,6 +1103,11 @@ namespace Credential.Services
 
                 PKIMethods.Instance.PKICleanupMDOCContexts();
 
+            }
+            catch (TransactionStateException ex)
+            {
+                _logger.LogError(ex, "Redis transaction state error while parsing presentation definition. PresentationId={PresentationId}", presentationId);
+                throw new LxException(ex.Message, LxErrorCodes.E_INVALID_REQUEST);
             }
             catch (LxException ex)
             {
@@ -1064,56 +1144,27 @@ namespace Credential.Services
                     throw new LxException("ID is missing in the presentationDefinition.", LxErrorCodes.E_UNSPECIFIED_ERROR);
                 }
 
-                
-
                 // Define keys for Redis retrieval
                 string QRDataKey = $"qrData:{presentationId}";
-                if (!_redisDb.KeyExists(QRDataKey))
-                {
-                    _logger.LogWarning("QR data key {QRDataKey} does not exist in Redis.");
-                    throw new LxException("QR data not found or expired.", LxErrorCodes.E_INVALID_REQUEST);
-                }
-                string qrDataString = _redisDb.StringGet(QRDataKey);
+                string qrDataString = _redisTransactionStore
+                    .ConsumeRequiredStringAsync(QRDataKey, presentationId.ToString(), "mdoc-qr-data")
+                    .GetAwaiter()
+                    .GetResult();
 
-                
-
-                // Check if qrDataString is available
-                if (string.IsNullOrEmpty(qrDataString))
-                {
-                    _logger.LogWarning("qrDataString is missing in Redis.");
-                    return new ServiceResult(false, "qrDataString is missing in Redis.", 400, "Bad Request", null);
-                }
-
-                _logger.LogInformation("Successfully retrieved qrDataString from Redis.");
-
-                // Define keys for Redis retrieval
                 string MPresentationDefinitionKey = $"jsonData:{presentationId}";
-                if (!_redisDb.KeyExists(QRDataKey))
-                {
-                    _logger.LogWarning("MPresentationDefinitionKey does not exist in Redis.");
-                    throw new LxException("MPresentationDefinitionData not found or expired.", LxErrorCodes.E_INVALID_REQUEST);
-                }
-                string jsonData = _redisDb.StringGet(MPresentationDefinitionKey);
-                
-
-                if (string.IsNullOrEmpty(jsonData))
-                {
-                    _logger.LogWarning("jsonData is missing in Redis.");
-                    throw new LxException("jsonData is missing in Redis.", LxErrorCodes.E_UNSPECIFIED_ERROR);
-                }
-
-                _logger.LogInformation("Successfully retrieved jsonData from Redis.");
+                string jsonData = _redisTransactionStore
+                    .ConsumeRequiredStringAsync(MPresentationDefinitionKey, presentationId.ToString(), "mdoc-presentation-json")
+                    .GetAwaiter()
+                    .GetResult();
 
                 LX_MDOC_DATA mdocData = new LX_MDOC_DATA();
 
                 // Parse the QR data string into MDOC data
                 PKIMethods.Instance.PKIParseMDOCDeviceEngagement(qrDataString, ref mdocData);
-               _redisDb.KeyDelete(QRDataKey);
 
                 byte[] mdocRequest = null;
                 // Prepare the MDOC request
                 PKIMethods.Instance.PKIPrepareMDOCRequests(jsonData, ref mdocRequest);
-                _redisDb.KeyDelete(MPresentationDefinitionKey);
                
                 string MdocRequest = mdocRequest != null && mdocRequest.Length > 0
                 ? Convert.ToBase64String(mdocRequest)
@@ -1149,6 +1200,11 @@ namespace Credential.Services
                 PKIMethods.Instance.PKICleanupMDOCContexts();
                 
             }
+            catch (TransactionStateException ex)
+            {
+                _logger.LogWarning(ex, "Expired or invalid Redis transaction for parseISO. PresentationId={PresentationId}", requestData?.ToString());
+                throw new LxException(ex.Message, LxErrorCodes.E_INVALID_REQUEST);
+            }
             catch (LxException ex)
             {
                 _logger.LogError("An error occurred while processing the request: {ErrorMessage}", ex.Message);
@@ -1183,9 +1239,17 @@ namespace Credential.Services
                 string jsonString = requestData.ToString();
 
                 string redisKey = $"{transactionId}_mdoc";
-                _redisDb.StringSet(redisKey, jsonString);
+                _redisTransactionStore
+                    .StoreStringAsync(redisKey, transactionId, jsonString, "mdoc-iso-post")
+                    .GetAwaiter()
+                    .GetResult();
 
                 return new ServiceResult(true, "JSON object saved successfully.", 200, "OK", "Posted Successfully");
+            }
+            catch (TransactionStateException ex)
+            {
+                _logger.LogError(ex, "Failed to store ISO data in Redis. TransactionId={TransactionId}", transactionId);
+                throw new LxException(ex.Message, LxErrorCodes.E_INVALID_REQUEST);
             }
             catch (LxException ex)
             {
@@ -1207,23 +1271,19 @@ namespace Credential.Services
 
                 var redisKey = $"{transactionId}_mdoc";
 
-                if (!_redisDb.KeyExists(redisKey))
-                {
-                    _logger.LogWarning("redisKey does not exist in Redis.");
-                    throw new LxException("Data Not Yet Posted.", LxErrorCodes.E_INVALID_REQUEST);
-                }
-
                 var pollingInterval = TimeSpan.FromSeconds(10);
                 var maxPollingAttempts = 30; // Adjust based on your requirements
                 var pollingAttempts = 0;
 
                 while (pollingAttempts < maxPollingAttempts)
                 {
-                    if (_redisDb.KeyExists(redisKey))
+                    var exists = await _redisDb.KeyExistsAsync(redisKey);
+                    if (exists)
                     {
-                        response = await _redisDb.StringGetAsync(redisKey);
-                        _redisDb.KeyDelete(redisKey);
-                        _logger.LogInformation("Deleted Redis key: {RedisKey}", redisKey);
+                        response = await _redisTransactionStore.ConsumeRequiredStringAsync(
+                            redisKey,
+                            transactionId,
+                            "mdoc-iso-post");
                         break;
                     }
 
@@ -1238,6 +1298,11 @@ namespace Credential.Services
                 }
 
                 return new ServiceResult(true, "JSON object saved successfully.", 200, "OK", response);
+            }
+            catch (TransactionStateException ex)
+            {
+                _logger.LogWarning(ex, "Expired or invalid transaction while fetching ISO data. TransactionId={TransactionId}", transactionId);
+                throw new LxException(ex.Message, LxErrorCodes.E_INVALID_REQUEST);
             }
             catch (LxException ex)
             {
