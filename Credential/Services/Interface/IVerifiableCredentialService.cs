@@ -18,7 +18,7 @@ namespace Credential.Services.Interface
             PresentationSubmission presentationSubmission,
              object verifiablePresentation,
             string state,
-            string transactionId);
+            string transactionId, bool isRejected=false);
 
         Task<object> VerifyPresentationResponseAsync(string transactionId);
 

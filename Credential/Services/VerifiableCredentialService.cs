@@ -448,8 +448,37 @@ namespace Credential.Services
         }
 
         public async Task SubmitVpTokenAsync(PresentationSubmission presentationSubmission,object verifiablePresentation,
-           string state,string transactionId)
+           string state,string transactionId, bool isRejected=false)
         {
+
+            
+
+            if(isRejected)
+            {
+
+                _logger.LogInformation("Presentation submission is rejected by the holder for transactionId: {0}", transactionId);
+                
+                var presentationSubmissionRejectedData = new
+            {
+                isRejected = isRejected,
+                presentation_submission = "null",
+                 vp_token = "null" // Ensure vp_token is stored as a JSON object
+            };
+
+            // Serialize the complete data to JSON and store in Redis
+                 var presentationSubmissionRejectedDataJson = JsonConvert.SerializeObject(presentationSubmissionRejectedData);
+
+                    await _redisTransactionStore.StoreStringAsync(
+                        transactionId,
+                        transactionId,
+                        presentationSubmissionRejectedDataJson,
+                        "presentation-submission");
+
+                    _logger.LogInformation("rejected presentation submission are stored in redis.");
+
+                return; // Exit the method after handling rejection
+            }
+
             // Parameter validation
             if (presentationSubmission == null)
                 throw new Exception("presentation_submission parameter is missing");
@@ -592,8 +621,15 @@ namespace Credential.Services
                 object verifyResultResponse = "Data not yet posted";
                 JToken attributesList = null;
 
-                // Check conditions for verification
-                if (presentationResponse?.presentation_submission == null &&
+                if(presentationResponse?.isRejected == true)
+                {
+                    _logger.LogInformation("Presentation submission is rejected by the holder for transactionId: {0}", transactionId);
+                    
+                    verifyResultResponse = "Presentation submission is rejected by the holder.";
+                     return new ServiceResult(false, "Presentation submission is rejected by the holder.", 0, "", null);
+
+                }
+                else if (presentationResponse?.presentation_submission == null &&
                     presentationResponse?.response_type == "vp_token" &&
                     presentationResponse?.response_mode == "direct_post")
                 {
@@ -728,7 +764,7 @@ namespace Credential.Services
                 _logger.LogInformation("Sending GET request to: {0}", urlWithTransactionId);
 
                 // Make the GET request
-                var response = await _httpClient.GetAsync(urlWithTransactionId);
+                var response = await _httpClient.GetAsync(urlWithTransactionId);             
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -773,8 +809,17 @@ namespace Credential.Services
                     throw TransactionStateException.DeserializationFailed(transactionId, transactionId, ex);
                 }
 
-                // Case: Data not yet posted
-                if (presentationResponse?.presentation_submission == null &&
+                if(presentationResponse?.isRejected == true)
+                {
+                    _logger.LogInformation("Presentation submission is rejected by the holder for transactionId: {0}", transactionId);
+                    
+                    var result = new ServiceResult(false, "Presentation submission is rejected by the holder.", 400, "", null);
+
+                    // Serialize to JSON string and return
+                    return JsonConvert.SerializeObject(result);
+
+                }
+                else if (presentationResponse?.presentation_submission == null &&
                     presentationResponse?.response_type == "vp_token" &&
                     presentationResponse?.response_mode == "direct_post")
                 {

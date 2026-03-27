@@ -104,12 +104,15 @@ namespace Credential.Models
     {
         public PresentationSubmission presentationSubmission { get; set; }
         public object verifiablePresentation { get; set; }
+
     }
     public class VPTokenSubmissionRequest
     {
         public PresentationSubmission PresentationSubmission { get; set; }
         public object VerifiablePresentation { get; set; }
         public string State { get; set; }
+        
+        public bool IsRejected { get; set; }
 
     }
     public class VerificationResult

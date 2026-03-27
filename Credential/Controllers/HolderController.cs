@@ -169,7 +169,7 @@ namespace Credential.Controllers
                 return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
             }
 
-            if (model.VerifiablePresentation == null || model.PresentationSubmission == null)
+            if (model.IsRejected==false && model.VerifiablePresentation == null || model.PresentationSubmission == null)
             {
                 return Ok(new ServiceResult(false, "Invalid request body.", 400, "Invalid request body", null));
             }
@@ -180,7 +180,8 @@ namespace Credential.Controllers
                     model.PresentationSubmission,
                     model.VerifiablePresentation,
                     model.State,
-                    transaction_id
+                    transaction_id,
+                    model.IsRejected
                 );
             }
             catch (Exception ex)
