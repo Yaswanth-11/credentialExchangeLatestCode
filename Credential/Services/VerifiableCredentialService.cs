@@ -163,37 +163,37 @@ namespace Credential.Services
                 var transactionId = Guid.NewGuid().ToString("N");
                 var requestId = Guid.NewGuid().ToString("N");
 
-                var orgDetailsUrl = $"{apiBaseUrl}/MDOCProvisioning/getOrgDetails/{request.clientId}";
-                _logger.LogError($"Failed to fetch org details: {orgDetailsUrl}");
+                // var orgDetailsUrl = $"{apiBaseUrl}/MDOCProvisioning/getOrgDetails/{request.clientId}";
+                // _logger.LogError($"Failed to fetch org details: {orgDetailsUrl}");
 
-                string? orgName = null;
+                //string? orgName = null;
 
-                if (!string.IsNullOrEmpty(request.clientId))
-                {
-                    var response = await _httpClient.GetAsync(orgDetailsUrl);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var responseData = await response.Content.ReadAsStringAsync();
-                        var orgDetails = Newtonsoft.Json.JsonConvert.DeserializeObject<OrgDetailsResponse>(responseData);
-                        orgName = orgDetails?.Result?.orgName;
-                    }
-                    else
-                    {
-                        _logger.LogError($"Failed to fetch org details: {response.StatusCode}");
-                        throw new Exception("Failed to fetch organization details");
-                    }
-                }
+                // if (!string.IsNullOrEmpty(request.clientId))
+                // {
+                //     var response = await _httpClient.GetAsync(orgDetailsUrl);
+                //     if (response.IsSuccessStatusCode)
+                //     {
+                //         var responseData = await response.Content.ReadAsStringAsync();
+                //         var orgDetails = Newtonsoft.Json.JsonConvert.DeserializeObject<OrgDetailsResponse>(responseData);
+                //         orgName = orgDetails?.Result?.orgName;
+                //     }
+                //     else
+                //     {
+                //         _logger.LogError($"Failed to fetch org details: {response.StatusCode}");
+                //         throw new Exception("Failed to fetch organization details");
+                //     }
+                // }
 
                 // If request.clientId is null, client_id should be null; otherwise, use orgName if available.
-                string? clientId = string.IsNullOrEmpty(request.clientId) ? "" : orgName;
+                //string? clientId = string.IsNullOrEmpty(request.clientId) ? "" : orgName;
 
                 var responseUri = $"{_pvtUrl}/api/vc/holder/presentation/response/{transactionId}";
-                _logger.LogError($"Failed to fetch org details: {responseUri}");
+                //_logger.LogError($"Failed to fetch org details: {responseUri}");
 
                 var authRequestObj = new
                 {
 
-                    client_id = clientId,
+                    client_id = request.clientId,
                     scope = request.Scope,
                     response_uri = responseUri,
                     response_type = "vp_token",
@@ -203,7 +203,7 @@ namespace Credential.Services
                     presentation_definition = presentationDefinition
                 };
 
-                _logger.LogError($"Failed to fetch org details: {authRequestObj}");
+                //_logger.LogError($"Failed to fetch org details: {authRequestObj}");
 
                 var jsonAuthRequestObj = Newtonsoft.Json.JsonConvert.SerializeObject(authRequestObj);
 
