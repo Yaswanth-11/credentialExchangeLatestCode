@@ -63,12 +63,6 @@ builder.Host.UseNLog();
 
 var app = builder.Build();
 
-// ================= PIPELINE =================
-
-// IMPORTANT: Base path for reverse proxy hosting
-var basePath = "/credential-exchange";
-app.UsePathBase(basePath);
-
 // Forwarded headers (very important behind proxy / TLS termination)
 var forwardOptions = new ForwardedHeadersOptions
 {
@@ -80,22 +74,11 @@ forwardOptions.KnownNetworks.Clear();
 forwardOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardOptions);
 
-// Swagger MUST be enabled in production
-app.UseSwagger(c =>
+if (app.Environment.IsDevelopment())
 {
-    c.PreSerializeFilters.Add((swaggerDoc, httpReq) =>
-    {
-        swaggerDoc.Servers = new List<OpenApiServer>
-        {
-            new() { Url = "/credential-exchange" }
-        };
-    });
-});
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint($"{basePath}/swagger/v1/swagger.json", "Credential API V1");
-    c.RoutePrefix = "swagger";
-});
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseHttpsRedirection();
 
