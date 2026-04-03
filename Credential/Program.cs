@@ -2,6 +2,7 @@ using Credential.Models;
 using Credential.RedisDB;
 using Credential.Services;
 using Credential.Services.Interface;
+using Credential.Services.Utilities;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
@@ -25,13 +26,32 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     // Let controllers and middleware produce existing response format instead of automatic validation payloads.
     options.SuppressModelStateInvalidFilter = true;
 });
+SecureStringHelper.Initialize(builder.Configuration);
+var useVault = builder.Configuration.GetValue<bool>("UseVault", false);
+var redisUrlKey = builder.Configuration["Redis:UrlKey"];
+var redisPasswordKey = builder.Configuration["Redis:PasswordKey"];
+
+var redisConnectionSetting = useVault && !string.IsNullOrWhiteSpace(redisUrlKey)
+    ? redisUrlKey
+    : builder.Configuration["redisConnectionString"]
+        ?? builder.Configuration["RedisSettings:redisConnectionString"];
+var redisPasswordSetting = useVault && !string.IsNullOrWhiteSpace(redisPasswordKey)
+    ? redisPasswordKey
+    : builder.Configuration["redisPassword"]
+        ?? builder.Configuration["RedisSettings:redisPassword"];
+var redisConnectionString = await SecureStringHelper.Decrypt(redisConnectionSetting ?? string.Empty);
+string? redisConnectionPassword = null;
+if (!string.IsNullOrWhiteSpace(redisPasswordSetting))
+{
+    redisConnectionPassword = await SecureStringHelper.Decrypt(redisPasswordSetting);
+}
 // Register Redis connection as a singleton
 builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
 {
     var configurationOptions = new ConfigurationOptions
     {
-        EndPoints = { builder.Configuration["RedisSettings:redisConnectionString"] },
-        Password = builder.Configuration["RedisSettings:redisPassword"],
+        EndPoints = { redisConnectionString },
+        Password = redisConnectionPassword,
         AbortOnConnectFail = false,
         ConnectTimeout = 100000,
     };
