@@ -29,17 +29,24 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 SecureStringHelper.Initialize(builder.Configuration);
 var useVault = builder.Configuration.GetValue<bool>("UseVault", false);
 var redisUrlKey = builder.Configuration["Redis:UrlKey"];
+var redisUsernameKey = builder.Configuration["Redis:UsernameKey"];
 var redisPasswordKey = builder.Configuration["Redis:PasswordKey"];
 
 var redisConnectionSetting = useVault && !string.IsNullOrWhiteSpace(redisUrlKey)
     ? redisUrlKey
-    : builder.Configuration["redisConnectionString"]
-        ?? builder.Configuration["RedisSettings:redisConnectionString"];
+    : builder.Configuration["redisConnectionString"];
+var redisUsernameSetting = useVault && !string.IsNullOrWhiteSpace(redisUsernameKey)
+    ? redisUsernameKey
+    : builder.Configuration["redisUsername"];
 var redisPasswordSetting = useVault && !string.IsNullOrWhiteSpace(redisPasswordKey)
     ? redisPasswordKey
-    : builder.Configuration["redisPassword"]
-        ?? builder.Configuration["RedisSettings:redisPassword"];
+    : builder.Configuration["redisPassword"];
 var redisConnectionString = await SecureStringHelper.Decrypt(redisConnectionSetting ?? string.Empty);
+string? redisUsername = null;
+if (!string.IsNullOrWhiteSpace(redisUsernameSetting))
+{
+    redisUsername = await SecureStringHelper.Decrypt(redisUsernameSetting);
+}
 string? redisConnectionPassword = null;
 if (!string.IsNullOrWhiteSpace(redisPasswordSetting))
 {
@@ -51,6 +58,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
     var configurationOptions = new ConfigurationOptions
     {
         EndPoints = { redisConnectionString },
+        User = redisUsername,
         Password = redisConnectionPassword,
         AbortOnConnectFail = false,
         ConnectTimeout = 100000,

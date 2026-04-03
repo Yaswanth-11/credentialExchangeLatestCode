@@ -26,7 +26,7 @@ namespace Credential.RedisDB
             _database = redisConnection.GetDatabase();
             _logger = logger;
 
-            var configuredMinutes = configuration.GetValue<int?>("RedisSettings:TransactionDataTtlMinutes");
+            var configuredMinutes = configuration.GetValue<int?>("TransactionDataTtlMinutes");
             var ttlMinutes = configuredMinutes.GetValueOrDefault(5);
             if (ttlMinutes <= 0)
             {

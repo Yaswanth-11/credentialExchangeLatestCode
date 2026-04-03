@@ -51,8 +51,9 @@ namespace Credential.Services
             _pvtUrl = _configuration["PvtSettings:PVTURL"];
             apiBaseUrl= _configuration["ApiSettings:OrgDetailsBaseUrl"];
             _httpClient = httpClient;
-            var ttlMinutes = _configuration.GetValue<int?>("RedisSettings:TransactionDataTtlMinutes").GetValueOrDefault(5);
-            _transactionDataTtl = TimeSpan.FromMinutes(ttlMinutes > 0 ? ttlMinutes : 5);
+            var ttlMinutes = _configuration.GetValue<int?>("TransactionDataTtlMinutes");
+            var resolvedTtlMinutes = ttlMinutes.GetValueOrDefault(5);
+            _transactionDataTtl = TimeSpan.FromMinutes(resolvedTtlMinutes > 0 ? resolvedTtlMinutes : 5);
             _logger = logger;
 
         }
