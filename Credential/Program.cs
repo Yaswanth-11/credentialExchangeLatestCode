@@ -55,14 +55,43 @@ if (!string.IsNullOrWhiteSpace(redisPasswordSetting))
 // Register Redis connection as a singleton
 builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
 {
+    var endpoints = (redisConnectionString ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    if (endpoints.Length == 0)
+    {
+        throw new InvalidOperationException("Redis connection string is missing or invalid.");
+    }
+
+    var isCluster = endpoints.Length > 1;
     var configurationOptions = new ConfigurationOptions
     {
-        EndPoints = { redisConnectionString },
         User = redisUsername,
         Password = redisConnectionPassword,
         AbortOnConnectFail = false,
-        ConnectTimeout = 100000,
     };
+
+    if (!isCluster)
+    {
+        configurationOptions.EndPoints.Add(endpoints[0]);
+        configurationOptions.ConnectTimeout = 100000;
+    }
+    else
+    {
+        configurationOptions.AllowAdmin = false;
+        configurationOptions.ConnectRetry = 5;
+        configurationOptions.ConnectTimeout = 10000;
+        configurationOptions.SyncTimeout = 10000;
+        configurationOptions.KeepAlive = 180;
+        configurationOptions.TieBreaker = string.Empty;
+        configurationOptions.CommandMap = CommandMap.Default;
+        configurationOptions.DefaultVersion = new Version(6, 0);
+
+        foreach (var endpoint in endpoints)
+        {
+            configurationOptions.EndPoints.Add(endpoint);
+        }
+    }
 
     return ConnectionMultiplexer.Connect(configurationOptions);
 });
