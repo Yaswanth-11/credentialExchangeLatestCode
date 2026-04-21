@@ -93,14 +93,16 @@ namespace Credential.Middleware
             catch (Exception ex)
             {
                 _logger.LogError(ex,
-                    "Unhandled exception occurred. ExceptionType={ExceptionType} Path={Path} TraceId={TraceId}",
+                    "Handled exception as 200. ExceptionType={ExceptionType} Path={Path} TraceId={TraceId}",
                     ex.GetType().Name, context.Request.Path, context.TraceIdentifier);
 
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                context.Response.StatusCode = (int)HttpStatusCode.OK;
                 context.Response.ContentType = "application/json";
 
+                var errorResponse = new ServiceResult(false, "Operation failed", 500, ex.Message, null);
+
                 await context.Response.WriteAsync(
-                    JsonSerializer.Serialize(new { success = false, message = "An unexpected error occurred." }, JsonOptions));
+                    JsonSerializer.Serialize(errorResponse, JsonOptions));
             }
         }
     }
