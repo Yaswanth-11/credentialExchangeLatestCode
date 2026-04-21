@@ -58,12 +58,62 @@ namespace Credential.Services
 
         }
 
-      
-        public async Task<string> GenerateRequestUriAsync(PresentationRequest request)
+
+        //public async Task<string> GenerateRequestUriAsync(PresentationRequest request)
+        //{
+        //    try
+        //    {
+        //        var presentationDefinition = await GeneratePresentationDefinitionAsync(request);
+
+        //        if (presentationDefinition == null)
+        //        {
+        //            _logger.LogError("Failed to generate presentation definition.");
+        //            throw new Exception("Failed to generate presentation definition.");
+        //        }
+
+        //        var requestUri = await PrepareRequestUriAsync(presentationDefinition, request);
+
+        //        return requestUri;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError("Error generating request URI {0} ", ex.Message);
+        //        throw new Exception("Error generating request URI", ex);
+        //    }
+        //}
+
+        public async Task<string> GenerateRequestUriAsync(PresentationRequest request, string accessToken)
         {
             try
             {
-                var presentationDefinition = await GeneratePresentationDefinitionAsync(request);
+                PresentationRequest req;
+                if(request.SelectedClaims==null )
+                {
+                    var claims = new Dictionary<string, List<string>>();
+                    if(!string.IsNullOrEmpty(accessToken))
+                    {
+                        claims = await GetClaimsByScopeAsync(request.Scope, accessToken);
+                    }
+                    else
+                    {
+                        throw new ArgumentException("Access token is required to fetch claims.");
+                    }
+
+                    req = new PresentationRequest
+                    {
+                        Type = request.Type,
+                        Scope = request.Scope,
+                        clientId = request.clientId,
+                        SelectedClaims = claims
+                    };
+                }
+                else
+                {
+                    req = request;
+                }
+
+                // ✅ Step 2: Generate presentation definition
+                var presentationDefinition = await GeneratePresentationDefinitionAsync(req);
 
                 if (presentationDefinition == null)
                 {
@@ -71,7 +121,7 @@ namespace Credential.Services
                     throw new Exception("Failed to generate presentation definition.");
                 }
 
-                var requestUri = await PrepareRequestUriAsync(presentationDefinition, request);
+                var requestUri = await PrepareRequestUriAsync(presentationDefinition, req);
 
                 return requestUri;
             }
@@ -88,6 +138,7 @@ namespace Credential.Services
             {
                 var id = Guid.NewGuid().ToString();
                 var inputDescriptors = new List<object>();
+
 
                 // Construct input descriptor for the specified type
                 var inputDescriptor = new
@@ -119,6 +170,12 @@ namespace Credential.Services
                             pattern = request.Type
                         }
                     });
+                }
+
+                if (request.SelectedClaims == null || !request.SelectedClaims.Any())
+                {
+                    _logger.LogError("No claims found for scope: {0}", request.Scope);
+                    throw new Exception("No claims found for given scope");
                 }
 
                 // Iterate through selected claims and add fields to the input descriptor
@@ -153,6 +210,61 @@ namespace Credential.Services
                 _logger.LogError("Error during presentation definition generation {0}", ex.Message);
                 throw new Exception("Error during presentation definition generation", ex);
             }
+        }
+
+        private async Task<Dictionary<string, List<string>>> GetClaimsByScopeAsync(string scope, string accessToken)
+        {
+                try
+                {
+                    var apiurl = $"{_configuration["ApiSettings:ClaimsByScopeUrl"]}/{scope}";
+
+                    var request = new HttpRequestMessage(HttpMethod.Get, apiurl);
+
+                    request.Headers.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                    var response = await _httpClient.SendAsync(request);
+
+                    _logger.LogInformation("Received response from Claims API");
+
+                    var responseContent = await response.Content.ReadAsStringAsync();
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogError("Claims API failed");
+                        throw new Exception($"Failed to call Claims API. Status: {response.StatusCode}, Response: {responseContent}");
+                    }
+
+                    var apiResponse = JsonConvert.DeserializeObject<ApiResponse>(responseContent);
+
+                    if (apiResponse == null || !apiResponse.success || apiResponse.result == null)
+                    {
+                        _logger.LogError("Invalid claims response structure");
+                        throw new Exception("Invalid claims response");
+                    }
+
+                    var claimsString = apiResponse.result.ToString();
+
+                    // Step 1: Split CSV → List<string>
+                    var claimsList = claimsString
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(c => c.Trim())
+                        .ToList();
+
+                    // Step 2: Wrap into required dictionary
+                    var selectedClaims = new Dictionary<string, List<string>>
+                    {
+                        { "Document", claimsList }
+                    };
+
+                    return selectedClaims;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError("Error in Claims API call {0}", ex.Message);
+                    throw new Exception("Error while calling Claims API", ex);
+                }
+            
         }
 
 

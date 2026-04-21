@@ -9,7 +9,7 @@ namespace Credential.Services.Interface
     public interface IVerifiableCredentialService
     {
         
-        Task<string> GenerateRequestUriAsync(PresentationRequest request);
+        Task<string> GenerateRequestUriAsync(PresentationRequest request, string accessToken);
         // Task<object> FetchRequestObjectAsync(string transactionId);
         Task<AuthRequestObject> FetchRequestObjectAsync(string transactionId);
         Task<ParsedPresentationDefinition> ParsePresentationDefinitionAsync(PresentationDefinition presentationDefinition);

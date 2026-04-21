@@ -40,6 +40,7 @@ namespace Credential.Controllers
             }
 
             PresentationRequest? model;
+
             try
             {
                 model = JsonSerializer.Deserialize<PresentationRequest>(
@@ -51,14 +52,40 @@ namespace Credential.Controllers
                 return Ok(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
             }
 
-            if (model == null || model.Type == null || model.Scope == null || model.SelectedClaims == null)
+            if (model == null || string.IsNullOrEmpty(model.Type) || string.IsNullOrEmpty(model.Scope))
             {
-                return Ok(new ServiceResult(false, "Invalid request body. 'PresentationRequest' is required.", 400, "Invalid request body", null));
+                return Ok(new ServiceResult(false, "Invalid request data.", 400, "Validation error", null));
             }
 
-            var result = await _verifiableCredentialService.GenerateRequestUriAsync(model);
-            _logger.LogInformation("Request URI generated successfully.");
-            return Ok(new ServiceResult(true, "Request URI generated successfully.", 0, "", result));
+            var accessToken = string.Empty;
+
+            if (model.SelectedClaims == null)
+            {
+                // ✅ Extract Bearer Token
+                var authHeader = HttpContext.Request.Headers["Authorization"].FirstOrDefault();
+
+                if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Ok(new ServiceResult(false, "Authorization token missing.", 401, "Unauthorized", null));
+                }
+
+                accessToken = authHeader.Substring("Bearer ".Length).Trim();   
+            }
+
+            try
+            {
+                var result = await _verifiableCredentialService.GenerateRequestUriAsync(model, accessToken);
+
+                return Ok(new ServiceResult(true, "Request URI generated successfully.", 0, "", result));
+            }
+            catch (Exception ex)
+            {
+                return Ok(new ServiceResult(false, ex.Message, 200, "Error", null));
+            }
+
+
+
+            
         }
 
         [HttpGet("presentation/verify/result/{transactionId}")]
