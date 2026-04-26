@@ -128,7 +128,7 @@ namespace Credential.Services
             catch (Exception ex)
             {
                 _logger.LogError("Error generating request URI {0} ", ex.Message);
-                throw new Exception("Error generating request URI", ex);
+                 throw;
             }
         }
 
@@ -208,7 +208,7 @@ namespace Credential.Services
             catch (Exception ex)
             {
                 _logger.LogError("Error during presentation definition generation {0}", ex.Message);
-                throw new Exception("Error during presentation definition generation", ex);
+                throw;
             }
         }
 
@@ -237,10 +237,18 @@ namespace Credential.Services
 
                     var apiResponse = JsonConvert.DeserializeObject<ApiResponse>(responseContent);
 
-                    if (apiResponse == null || !apiResponse.success || apiResponse.result == null)
+                    if (apiResponse == null)
                     {
-                        _logger.LogError("Invalid claims response structure");
-                        throw new Exception("Invalid claims response");
+                        throw new Exception("Claims API returned invalid response.");
+                    }
+
+                    if (!apiResponse.success)
+                    {
+                        var msg = string.IsNullOrWhiteSpace(apiResponse.message)
+                            ? "Claims API returned failure."
+                            : apiResponse.message;
+
+                        throw new Exception(msg); // <-- "Scope not exists for client"
                     }
 
                     var claimsString = apiResponse.result.ToString();
@@ -262,7 +270,7 @@ namespace Credential.Services
                 catch (Exception ex)
                 {
                     _logger.LogError("Error in Claims API call {0}", ex.Message);
-                    throw new Exception("Error while calling Claims API", ex);
+                    throw;
                 }
             
         }
@@ -739,7 +747,7 @@ namespace Credential.Services
                     _logger.LogInformation("Presentation submission is rejected by the holder for transactionId: {0}", transactionId);
                     
                     verifyResultResponse = "Presentation submission is rejected by the holder.";
-                     return new ServiceResult(false, "Presentation submission is rejected by the holder.", 0, "", null);
+                     return new ServiceResult(false, "Presentation submission is rejected by the holder.", 1200, "", null);
 
                 }
                 else if (presentationResponse?.presentation_submission == null &&
@@ -747,7 +755,7 @@ namespace Credential.Services
                     presentationResponse?.response_mode == "direct_post")
                 {
                     verifyResultResponse = "Data not yet posted";
-                     return new ServiceResult(false, "Data not yet posted", 0, "", null);
+                     return new ServiceResult(false, "Data not yet posted", 1201, "", null);
                 }
                 else if (presentationResponse?.presentation_submission != null &&
                          presentationResponse?.vp_token != null)
@@ -926,7 +934,7 @@ namespace Credential.Services
                 {
                     _logger.LogInformation("Presentation submission is rejected by the holder for transactionId: {0}", transactionId);
                     
-                    var result = new ServiceResult(false, "Presentation submission is rejected by the holder.", 400, "", null);
+                    var result = new ServiceResult(false, "Presentation submission is rejected by the holder.", 1200, "", null);
 
                     // Serialize to JSON string and return
                     return JsonConvert.SerializeObject(result);
@@ -937,7 +945,7 @@ namespace Credential.Services
                     presentationResponse?.response_mode == "direct_post")
                 {
                     _logger.LogInformation("Data not yet posted for transaction ID: {0}", transactionId);
-                    var result1= new ServiceResult(false, "Data not yet posted for transaction ID", 400, "", null);
+                    var result1= new ServiceResult(false, "Data not yet posted for transaction ID", 1201, "", null);
 
                     // Serialize to JSON string and return
                     return JsonConvert.SerializeObject(result1);

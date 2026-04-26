@@ -80,12 +80,11 @@ namespace Credential.Controllers
             }
             catch (Exception ex)
             {
-                return Ok(new ServiceResult(false, ex.Message, 200, "Error", null));
+                var rootMessage = ex.GetBaseException().Message;
+                _logger.LogError("Error generating request URI {0} ", rootMessage);
+                return Ok(new ServiceResult(false,"Request Uri creation failed", 500,rootMessage,null));
             }
-
-
-
-            
+       
         }
 
         [HttpGet("presentation/verify/result/{transactionId}")]
