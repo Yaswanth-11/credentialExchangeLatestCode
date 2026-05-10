@@ -104,6 +104,8 @@ namespace Lux.Infrastructure
         public const int  E_SUCCESS = 1092;
         public const int E_INTERNAL_ERROR = 1093;
         public const int E_INVALID_REQUEST = 1094;
+        public const int E_PKI_NATIVE_GENERATE_CHECKSUM = 1095;
+        public const int E_PKI_NATIVE_VERIFY_CHECKSUM = 1096;
         private static Dictionary<int, string> Messages
         {
             get
@@ -117,6 +119,8 @@ namespace Lux.Infrastructure
                     _messages.Add(E_ERROR_GENERATING_TOKEN, "Error occurred in generating token");
                     _messages.Add(E_PKI_NATIVE_INIT, "Error occurred in PKI native initialization method ");
                     _messages.Add(E_PKI_NATIVE_ADD_CHECKSUM, "Error occurred in PKI native add checksum method");
+                    _messages.Add(E_PKI_NATIVE_GENERATE_CHECKSUM, "Error occurred in PKI native generate checksum method");
+                    _messages.Add(E_PKI_NATIVE_VERIFY_CHECKSUM, "Error occurred in PKI native verify checksum method");
                     _messages.Add(E_PKI_NATIVE_FREE_MEM, "Error occurred in PKI native add free memory method");
                     _messages.Add(E_PKI_NATIVE_GET_MSG, "Error occurred in PKI native get message method");
                     _messages.Add(E_GET_BY_ID_ASYNC, "Error occurred in Repository get by ID async method");

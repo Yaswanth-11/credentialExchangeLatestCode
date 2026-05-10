@@ -1,3 +1,4 @@
+using Credential.Middleware;
 using Credential.Models;
 using Credential.RedisDB;
 using Credential.Services;
@@ -5,8 +6,8 @@ using Credential.Services.Interface;
 using Credential.Services.Utilities;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Models;
 using NLog.Web;
 using StackExchange.Redis;
 using System;
@@ -165,6 +166,9 @@ app.UseStatusCodePages(async statusCodeContext =>
 
 // Global exception handling middleware - must be before routing/controllers
 app.UseMiddleware<Credential.Middleware.GlobalExceptionMiddleware>();
+
+
+app.UseMiddleware<Credential.Middleware.ChecksumValidationMiddleware>();
 
 app.UseAuthorization();
 app.MapControllers();

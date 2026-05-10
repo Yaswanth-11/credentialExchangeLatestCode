@@ -37,6 +37,8 @@ namespace Credential.Services.Interface
         public ServiceResult postISO(string transactionId, object requestData);
 
         Task<ServiceResult> getISO(string transactionId);
+
+        public int verifychecksum(byte[] data, string checksum);
     }
 
 }

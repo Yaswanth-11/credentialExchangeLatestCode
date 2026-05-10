@@ -558,5 +558,95 @@ namespace Credential.Services.Utilities
             }
         }
 
+        public string GenerateChecksum(byte[] data)
+        {
+            // local variables
+            string response;
+            IntPtr responseBuffer = IntPtr.Zero;
+            int responseBufferLength = 0;
+
+            try
+            {
+                if (data == null || data.Length == 0)
+                {
+                    throw new LxException(
+                        "Input data must not be null or empty",
+                        LxErrorCodes.E_INVALID_ARGUMENT);
+                }
+
+                int result = NativeMethods.GenerateChecksumNative(
+                     data,
+                     data.Length,
+                     ref responseBuffer,
+                     ref responseBufferLength);
+                if (result != 0)
+                {
+                    string error = GetStatusMessagePKI(result);
+                    throw new LxException(error, LxErrorCodes.E_PKI_NATIVE_GENERATE_CHECKSUM);
+                }
+
+                response = Marshal.PtrToStringAnsi(responseBuffer, responseBufferLength);
+
+                return response;
+            }
+            catch (LxException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new LxException(ex.Message, LxErrorCodes.E_PKI_NATIVE_GENERATE_CHECKSUM);
+            }
+            finally
+            {
+                if (responseBuffer != IntPtr.Zero)
+                {
+                    // Free the buffer
+                    FreeMemoryPKI(responseBuffer);
+                    responseBuffer = IntPtr.Zero;
+                }
+            }
+        }
+
+        public int VerifyChecksum(byte[] data,string checksumData)
+        {
+
+            try
+            {
+                if (data == null || data.Length == 0)
+                {
+                    throw new LxException(
+                        "Input data must not be null or empty",
+                        LxErrorCodes.E_INVALID_ARGUMENT);
+                }
+
+                if (String.IsNullOrEmpty(checksumData))
+                {
+                    throw new LxException("Input checksum data must not be null or empty, in the VerifyChecksum \"checksumData\" parameter", LxErrorCodes.E_INVALID_ARGUMENT);
+                }
+
+                int result = NativeMethods.VerifyChecksumOfData(
+                     data,
+                     data.Length,
+                     checksumData,
+                     checksumData.Length);
+                if (result != 0)
+                {
+                    string error = GetStatusMessagePKI(result);
+                    throw new LxException(error, LxErrorCodes.E_PKI_NATIVE_VERIFY_CHECKSUM);
+                }
+
+                return 1;
+            }
+            catch (LxException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new LxException(ex.Message, LxErrorCodes.E_PKI_NATIVE_VERIFY_CHECKSUM);
+            }
+        }
+
     }
 }

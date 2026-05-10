@@ -21,6 +21,7 @@ using System.Net.Http;
 using Lux.Infrastructure;
 using Newtonsoft.Json.Serialization;
 using System.Transactions;
+using System.Net.Mail;
 
 namespace Credential.Services
 {
@@ -1481,5 +1482,21 @@ namespace Credential.Services
                 throw new LxException(ex.Message, LxErrorCodes.E_UNSPECIFIED_ERROR);
             }
         }
+
+
+        public int verifychecksum(byte[] data, string checksum)
+        {
+            try
+            {
+                int result = PKIMethods.Instance.VerifyChecksum(data, checksum);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("An error occurred while verifying checksum: {ErrorMessage}", ex.Message);
+                throw new LxException(ex.Message, LxErrorCodes.E_UNSPECIFIED_ERROR);
+            }
+        }
+
     }
 }

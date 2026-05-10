@@ -115,11 +115,32 @@ namespace Credential.Services.Utilities
 
         [DllImport(DLL_PATH,
            BestFitMapping = false, CallingConvention = CallingConvention.Cdecl,
+           CharSet = CharSet.Ansi, EntryPoint = "PKIGenerateChecksum",
+           ThrowOnUnmappableChar = true)]
+        internal static extern int GenerateChecksumNative(
+           byte[] data,
+           int dataLength,
+           ref IntPtr checksum,
+           ref int checksumLength);
+
+        [DllImport(DLL_PATH,
+           BestFitMapping = false, CallingConvention = CallingConvention.Cdecl,
            CharSet = CharSet.Ansi, EntryPoint = "PKIVerifyChecksumOfTransaction",
            ThrowOnUnmappableChar = true)]
         internal static extern int VerifyChecksumNative(
            [MarshalAs(UnmanagedType.LPStr)] string data,
            int dataLength);
+
+        [DllImport(DLL_PATH,
+          BestFitMapping = false, CallingConvention = CallingConvention.Cdecl,
+          CharSet = CharSet.Ansi, EntryPoint = "PKIVerifyChecksumOfData",
+          ThrowOnUnmappableChar = true)]
+        internal static extern int VerifyChecksumOfData(
+          byte[] data,
+          int dataLength,
+          [MarshalAs(UnmanagedType.LPStr)] string checksum_data,
+            int checksum_data_length
+          );
 
         [DllImport(DLL_PATH,
            BestFitMapping = false, CallingConvention = CallingConvention.Cdecl,
