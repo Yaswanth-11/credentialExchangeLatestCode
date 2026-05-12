@@ -132,11 +132,8 @@ forwardOptions.KnownNetworks.Clear();
 forwardOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardOptions);
 
-if (app.Environment.IsDevelopment())
-{
     app.UseSwagger();
     app.UseSwaggerUI();
-}
 
 app.UseHttpsRedirection();
 
