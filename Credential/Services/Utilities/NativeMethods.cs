@@ -120,6 +120,7 @@ namespace Credential.Services.Utilities
         internal static extern int GenerateChecksumNative(
            byte[] data,
            int dataLength,
+           int isJSON,
            ref IntPtr checksum,
            ref int checksumLength);
 
@@ -138,6 +139,7 @@ namespace Credential.Services.Utilities
         internal static extern int VerifyChecksumOfData(
           byte[] data,
           int dataLength,
+          int isJSON,
           [MarshalAs(UnmanagedType.LPStr)] string checksum_data,
             int checksum_data_length
           );

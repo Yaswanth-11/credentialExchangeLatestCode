@@ -1484,11 +1484,11 @@ namespace Credential.Services
         }
 
 
-        public int verifychecksum(byte[] data, string checksum)
+        public int verifychecksum(byte[] data, string checksum, int isJSON)
         {
             try
             {
-                int result = PKIMethods.Instance.VerifyChecksum(data, checksum);
+                int result = PKIMethods.Instance.VerifyChecksum(data, checksum, isJSON);
                 return result;
             }
             catch (Exception ex)

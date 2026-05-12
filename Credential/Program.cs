@@ -115,6 +115,14 @@ builder.Services.AddCors(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddLogging();
+builder.Services.AddMemoryCache();
+
+//add checksum configurations
+builder.Services.Configure<ChecksumValidationOptions>(
+    builder.Configuration.GetSection(
+        "ChecksumValidation"));
+builder.Services.Configure<TokenIntrospectionOptions>(
+    builder.Configuration.GetSection("TokenIntrospection"));
 builder.Logging.ClearProviders();
 builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information);
 builder.Host.UseNLog();
@@ -164,6 +172,7 @@ app.UseStatusCodePages(async statusCodeContext =>
 // Global exception handling middleware - must be before routing/controllers
 app.UseMiddleware<Credential.Middleware.GlobalExceptionMiddleware>();
 
+app.UseMiddleware<AuthorizationIntrospectionMiddleware>();
 
 app.UseMiddleware<Credential.Middleware.ChecksumValidationMiddleware>();
 

@@ -38,7 +38,7 @@ namespace Credential.Services.Interface
 
         Task<ServiceResult> getISO(string transactionId);
 
-        public int verifychecksum(byte[] data, string checksum);
+        public int verifychecksum(byte[] data, string checksum, int isJSON);
     }
 
 }

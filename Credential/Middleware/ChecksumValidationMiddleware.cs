@@ -1,10 +1,11 @@
 using Credential.Models;
-using Credential.Models.Exceptions;
 using Credential.Services.Utilities;
-using Lux.Infrastructure;
-using System.Net;
+using Microsoft.Extensions.Options;
+using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Credential.Middleware
 {
@@ -12,89 +13,319 @@ namespace Credential.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<ChecksumValidationMiddleware> _logger;
+        private readonly ChecksumValidationOptions _options;
 
         public ChecksumValidationMiddleware(
             RequestDelegate next,
-            ILogger<ChecksumValidationMiddleware> logger)
+            ILogger<ChecksumValidationMiddleware> logger,
+            IOptions<ChecksumValidationOptions> options)
         {
             _next = next;
             _logger = logger;
+             _options = options.Value;
         }
+
+        private static JsonNode? CanonicalizeJson(
+    JsonNode? node)
+        {
+            if (node == null)
+                return null;
+
+            // Object
+            if (node is JsonObject obj)
+            {
+                JsonObject sortedObj = new();
+
+                foreach (var property in obj
+                    .OrderBy(p => p.Key, StringComparer.Ordinal))
+                {
+                    sortedObj[property.Key] =
+                        CanonicalizeJson(property.Value);
+                }
+
+                return sortedObj;
+            }
+
+            // Array
+            if (node is JsonArray arr)
+            {
+                JsonArray newArr = new();
+
+                foreach (var item in arr)
+                {
+                    newArr.Add(
+                        CanonicalizeJson(item));
+                }
+
+                return newArr;
+            }
+
+            // Primitive
+            return node.DeepClone();
+        }
+
 
         public async Task InvokeAsync(HttpContext context)
         {
-            // Optional:
-            // Skip GET/DELETE requests
-            if (HttpMethods.IsGet(context.Request.Method) ||
-                HttpMethods.IsDelete(context.Request.Method))
+            if (ShouldSkipRequest(context))
             {
                 await _next(context);
                 return;
             }
 
-            // Read checksum header
-            string checksum = context.Request.Headers["X-Checksum"].FirstOrDefault();
+            string checksum = GetRequiredHeader(
+                context,
+                "X-Checksum",
+                ApiMessages.ChecksumHeaderMissing);
 
-            if (string.IsNullOrWhiteSpace(checksum))
+            string requestBody = await ReadRequestBodyAsync(context);
+
+            bool isGetRequest = HttpMethods.IsGet(context.Request.Method);
+
+            if (!isGetRequest &&
+                string.IsNullOrWhiteSpace(requestBody))
             {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-
-                await context.Response.WriteAsJsonAsync(
-                    new ServiceResult(
-                        false,
-                        "Checksum header missing.",
-                        401,
-                        "Checksum validation failed",
-                        null));
-
-                return;
+                throw new ArgumentException(
+                    ApiMessages.RequestBodyEmpty);
             }
 
-            // Enable rereading body
+            string? platform =
+                context.Request.Headers["X-Client-Platform"].FirstOrDefault();
+
+            if (IsWebPlatform(platform))
+            {
+                if (!_options.EnableWeb)
+                {
+                    await _next(context);
+                    return;
+                }
+
+                ValidateWebChecksum(
+                    context,
+                    checksum,
+                    requestBody);
+            }
+            else
+            {
+                if (!_options.EnableMobile)
+                {
+                    await _next(context);
+                    return;
+                }
+
+                ValidateMobileChecksum(
+                    context,
+                    checksum,
+                    requestBody);
+            }
+
+            await _next(context);
+        }
+
+        private bool ShouldSkipRequest(HttpContext context)
+        {
+            if (HttpMethods.IsDelete(context.Request.Method))
+            {
+                return true;
+            }
+
+            return !_options.Enabled;
+        }
+
+        private static bool IsWebPlatform(string? platform)
+        {
+            return string.Equals(
+                platform,
+                "web",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetRequiredHeader(
+            HttpContext context,
+            string headerName,
+            string errorMessage)
+        {
+            string? value =
+                context.Request.Headers[headerName].FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new UnauthorizedAccessException(errorMessage);
+            }
+
+            return value;
+        }
+
+        private static async Task<string> ReadRequestBodyAsync(HttpContext context)
+        {
             context.Request.EnableBuffering();
 
-            string requestBody;
-
-            using (var reader = new StreamReader(
+            using var reader = new StreamReader(
                 context.Request.Body,
                 Encoding.UTF8,
                 detectEncodingFromByteOrderMarks: false,
-                leaveOpen: true))
-            {
-                requestBody = await reader.ReadToEndAsync();
-            }
+                leaveOpen: true);
 
-            // Reset stream position
+            string requestBody =
+                await reader.ReadToEndAsync();
+
             context.Request.Body.Position = 0;
 
-            if (string.IsNullOrWhiteSpace(requestBody))
+            return requestBody;
+        }
+
+        private void ValidateWebChecksum(
+            HttpContext context,
+            string checksum,
+            string requestBody)
+        {
+            (string timestampHeader, string nonce) =
+                GetWebHeaders(context);
+
+            ValidateTimestamp(timestampHeader);
+
+            string checksumData =
+                GetChecksumDataForWeb(context, requestBody);
+
+            string payload =
+                $"{timestampHeader}|{nonce}|{checksumData}";
+
+            string generatedChecksum =
+                GenerateChecksum(payload);
+
+            if (!string.Equals(
+                    generatedChecksum,
+                    checksum,
+                    StringComparison.Ordinal))
             {
-                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                _logger.LogWarning(
+                    "Checksum validation failed. Path={Path}",
+                    context.Request.Path);
 
-                await context.Response.WriteAsJsonAsync(
-                    new ServiceResult(
-                        false,
-                        "Request body empty.",
-                        400,
-                        "Validation failed",
-                        null));
+                throw new UnauthorizedAccessException(
+                    ApiMessages.RequestIntegrityFailed);
+            }
+        }
 
-                return;
+        private static (string TimestampHeader, string Nonce) GetWebHeaders(
+            HttpContext context)
+        {
+            string? timestampHeader =
+                context.Request.Headers["X-Timestamp"].FirstOrDefault();
+            string? nonce =
+                context.Request.Headers["X-Nonce"].FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(timestampHeader) ||
+                string.IsNullOrWhiteSpace(nonce))
+            {
+                throw new UnauthorizedAccessException(
+                    ApiMessages.TimestampOrNonceMissing);
             }
 
-            Console.WriteLine($"Request Body: {requestBody}");
+            return (timestampHeader, nonce);
+        }
 
+        private void ValidateTimestamp(string timestampHeader)
+        {
+            if (!long.TryParse(timestampHeader, out long requestTimestamp))
+            {
+                throw new UnauthorizedAccessException(
+                    ApiMessages.InvalidTimestamp);
+            }
+
+            long currentTimestamp =
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            long diff =
+                Math.Abs(currentTimestamp - requestTimestamp);
+
+            if (diff > _options.AllowedTimestampDriftSeconds)
+            {
+                throw new UnauthorizedAccessException(
+                    ApiMessages.RequestExpired);
+            }
+        }
+
+        private string GetChecksumDataForWeb(
+            HttpContext context,
+            string requestBody)
+        {
+            if (HttpMethods.IsGet(context.Request.Method))
+            {
+                return context.Request.Path.Value?
+                    .Split('/', StringSplitOptions.RemoveEmptyEntries)
+                    .LastOrDefault() ?? string.Empty;
+            }
+
+            JsonNode? jsonNode;
+
+            try
+            {
+                jsonNode = JsonNode.Parse(requestBody);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Invalid JSON payload. Path={Path}",
+                    context.Request.Path);
+
+                throw new ArgumentException(
+                    ApiMessages.InvalidJsonPayload);
+            }
+
+            if (jsonNode == null)
+            {
+                throw new ArgumentException(
+                    ApiMessages.InvalidJsonPayload);
+            }
+
+            JsonNode? canonicalJson = CanonicalizeJson(jsonNode);
+
+            return canonicalJson!.ToJsonString(
+                new JsonSerializerOptions
+                {
+                    WriteIndented = false
+                });
+        }
+
+        private static string GenerateChecksum(string payload)
+        {
+            byte[] payloadBytes =
+                Encoding.UTF8.GetBytes(payload);
+
+            byte[] hashBytes =
+                SHA256.HashData(payloadBytes);
+
+            return Convert.ToBase64String(hashBytes);
+        }
+
+        private void ValidateMobileChecksum(
+            HttpContext context,
+            string checksum,
+            string requestBody)
+        {
+            bool isGetRequest =
+                HttpMethods.IsGet(context.Request.Method);
+
+            string checksumData =
+                isGetRequest
+                    ? context.Request.Path.Value?
+                        .Split('/', StringSplitOptions.RemoveEmptyEntries)
+                        .LastOrDefault() ?? string.Empty
+                    : requestBody;
+
+            int requestType =
+                isGetRequest ? 0 : 1;
 
             byte[] requestBytes =
-                Encoding.UTF8.GetBytes(requestBody);
+                Encoding.UTF8.GetBytes(checksumData);
 
-            
-
-            //verify checksum
             int verifyResult =
-                     PKIMethods.Instance.VerifyChecksum(
-                        requestBytes,
-                        checksum);
+                PKIMethods.Instance.VerifyChecksum(
+                   requestBytes,
+                   checksum,
+                   requestType);
 
             if (verifyResult != 1)
             {
@@ -102,21 +333,9 @@ namespace Credential.Middleware
                     "Checksum validation failed. Path={Path}",
                     context.Request.Path);
 
-                context.Response.StatusCode =
-                    StatusCodes.Status401Unauthorized;
-
-                await context.Response.WriteAsJsonAsync(
-                    new ServiceResult(
-                        false,
-                        "Request integrity validation failed.",
-                        401,
-                        "Checksum verification failed",
-                        null));
-
-                return;
+                throw new UnauthorizedAccessException(
+                    ApiMessages.RequestIntegrityFailed);
             }
-
-            await _next(context);
         }
     }
 }

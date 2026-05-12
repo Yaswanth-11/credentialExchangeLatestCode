@@ -16,6 +16,9 @@ namespace Credential.Middleware
             PropertyNamingPolicy = null // PascalCase to match existing convention
         };
 
+        private const string JsonContentType =
+            "application/json";
+
         public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
         {
             _next = next;
@@ -35,10 +38,10 @@ namespace Credential.Middleware
                     nameof(LxException), ex.Code, context.Request.Path, context.TraceIdentifier);
 
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                context.Response.ContentType = "application/json";
+                context.Response.ContentType = JsonContentType;
 
                 var result = new ServiceResult(false, ex.Message, ex.Code,
-                    LxErrorCodes.GetErrorMessage(ex.Code), null);
+                    LxErrorCodes.GetErrorMessage(ex.Code), null!);
 
                 await context.Response.WriteAsync(JsonSerializer.Serialize(result, JsonOptions));
             }
@@ -49,7 +52,7 @@ namespace Credential.Middleware
                     nameof(UnauthorizedAccessException), context.Request.Path, context.TraceIdentifier);
 
                 context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
-                context.Response.ContentType = "application/json";
+                context.Response.ContentType = JsonContentType;
 
                 await context.Response.WriteAsync(
                     JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
@@ -61,7 +64,7 @@ namespace Credential.Middleware
                     nameof(ArgumentException), context.Request.Path, context.TraceIdentifier);
 
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                context.Response.ContentType = "application/json";
+                context.Response.ContentType = JsonContentType;
 
                 await context.Response.WriteAsync(
                     JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
@@ -73,7 +76,7 @@ namespace Credential.Middleware
                     nameof(KeyNotFoundException), context.Request.Path, context.TraceIdentifier);
 
                 context.Response.StatusCode = (int)HttpStatusCode.NotFound;
-                context.Response.ContentType = "application/json";
+                context.Response.ContentType = JsonContentType;
 
                 await context.Response.WriteAsync(
                     JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
@@ -85,7 +88,7 @@ namespace Credential.Middleware
                     nameof(TransactionStateException), ex.ErrorType, ex.TransactionId, ex.Key, context.Request.Path, context.TraceIdentifier);
 
                 context.Response.StatusCode = (int)HttpStatusCode.Gone;
-                context.Response.ContentType = "application/json";
+                context.Response.ContentType = JsonContentType;
 
                 await context.Response.WriteAsync(
                     JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
@@ -97,9 +100,9 @@ namespace Credential.Middleware
                     ex.GetType().Name, context.Request.Path, context.TraceIdentifier);
 
                 context.Response.StatusCode = (int)HttpStatusCode.OK;
-                context.Response.ContentType = "application/json";
+                context.Response.ContentType = JsonContentType;
 
-                var errorResponse = new ServiceResult(false, "Operation failed", 500, ex.Message, null);
+                var errorResponse = new ServiceResult(false, ApiMessages.OperationFailed, 500, ex.Message, null!);
 
                 await context.Response.WriteAsync(
                     JsonSerializer.Serialize(errorResponse, JsonOptions));

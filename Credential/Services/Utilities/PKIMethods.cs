@@ -558,7 +558,7 @@ namespace Credential.Services.Utilities
             }
         }
 
-        public string GenerateChecksum(byte[] data)
+        public string GenerateChecksum(byte[] data,int isJSON)
         {
             // local variables
             string response;
@@ -577,6 +577,7 @@ namespace Credential.Services.Utilities
                 int result = NativeMethods.GenerateChecksumNative(
                      data,
                      data.Length,
+                     isJSON,
                      ref responseBuffer,
                      ref responseBufferLength);
                 if (result != 0)
@@ -608,7 +609,7 @@ namespace Credential.Services.Utilities
             }
         }
 
-        public int VerifyChecksum(byte[] data,string checksumData)
+        public int VerifyChecksum(byte[] data,string checksumData, int isJSON)
         {
 
             try
@@ -628,6 +629,7 @@ namespace Credential.Services.Utilities
                 int result = NativeMethods.VerifyChecksumOfData(
                      data,
                      data.Length,
+                     isJSON,
                      checksumData,
                      checksumData.Length);
                 if (result != 0)
