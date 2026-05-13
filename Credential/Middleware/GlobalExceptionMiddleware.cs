@@ -54,8 +54,15 @@ namespace Credential.Middleware
                 context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
                 context.Response.ContentType = JsonContentType;
 
+                var result = new ServiceResult(
+                    false,
+                    ex.Message,
+                    (int)HttpStatusCode.Unauthorized,
+                    ApiMessages.Unauthorized,
+                    null!);
+
                 await context.Response.WriteAsync(
-                    JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
+                    JsonSerializer.Serialize(result, JsonOptions));
             }
             catch (ArgumentException ex)
             {
@@ -66,8 +73,15 @@ namespace Credential.Middleware
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 context.Response.ContentType = JsonContentType;
 
+                var result = new ServiceResult(
+                    false,
+                    ex.Message,
+                    (int)HttpStatusCode.BadRequest,
+                    ApiMessages.BadRequest,
+                    null!);
+
                 await context.Response.WriteAsync(
-                    JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
+                    JsonSerializer.Serialize(result, JsonOptions));
             }
             catch (KeyNotFoundException ex)
             {
@@ -78,8 +92,15 @@ namespace Credential.Middleware
                 context.Response.StatusCode = (int)HttpStatusCode.NotFound;
                 context.Response.ContentType = JsonContentType;
 
+                var result = new ServiceResult(
+                    false,
+                    ex.Message,
+                    (int)HttpStatusCode.NotFound,
+                    ApiMessages.NotFound,
+                    null!);
+
                 await context.Response.WriteAsync(
-                    JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
+                    JsonSerializer.Serialize(result, JsonOptions));
             }
             catch (TransactionStateException ex)
             {
@@ -90,8 +111,15 @@ namespace Credential.Middleware
                 context.Response.StatusCode = (int)HttpStatusCode.Gone;
                 context.Response.ContentType = JsonContentType;
 
+                var result = new ServiceResult(
+                    false,
+                    ex.Message,
+                    (int)HttpStatusCode.Gone,
+                    ApiMessages.Gone,
+                    null!);
+
                 await context.Response.WriteAsync(
-                    JsonSerializer.Serialize(new { success = false, message = ex.Message }, JsonOptions));
+                    JsonSerializer.Serialize(result, JsonOptions));
             }
             catch (Exception ex)
             {

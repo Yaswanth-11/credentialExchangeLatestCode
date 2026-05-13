@@ -1,6 +1,9 @@
 using Credential.Models;
+using Credential.Models.Exceptions;
+using Credential.RedisDB;
 using Credential.Services.Utilities;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,14 +18,24 @@ namespace Credential.Middleware
         private readonly ILogger<ChecksumValidationMiddleware> _logger;
         private readonly ChecksumValidationOptions _options;
 
+        private readonly IRedisTransactionStore _redisTransactionStore;
+
+        private const string NonceKeyPrefix =
+            "wallet:nonce:";
+
+        private const string NonceDataType =
+            "nonce";
+
         public ChecksumValidationMiddleware(
             RequestDelegate next,
             ILogger<ChecksumValidationMiddleware> logger,
-            IOptions<ChecksumValidationOptions> options)
+            IOptions<ChecksumValidationOptions> options,
+            IRedisTransactionStore redisTransactionStore)
         {
             _next = next;
             _logger = logger;
              _options = options.Value;
+            _redisTransactionStore = redisTransactionStore;
         }
 
         private static JsonNode? CanonicalizeJson(
@@ -100,7 +113,7 @@ namespace Credential.Middleware
                     return;
                 }
 
-                ValidateWebChecksum(
+                await ValidateWebChecksumAsync(
                     context,
                     checksum,
                     requestBody);
@@ -174,7 +187,7 @@ namespace Credential.Middleware
             return requestBody;
         }
 
-        private void ValidateWebChecksum(
+        private async Task ValidateWebChecksumAsync(
             HttpContext context,
             string checksum,
             string requestBody)
@@ -205,6 +218,64 @@ namespace Credential.Middleware
                 throw new UnauthorizedAccessException(
                     ApiMessages.RequestIntegrityFailed);
             }
+
+            await EnforceNonceReplayProtectionAsync(nonce);
+        }
+
+        private async Task EnforceNonceReplayProtectionAsync(string nonce)
+        {
+            if (!_options.EnableReplayAttackProtection)
+            {
+                return;
+            }
+
+            TimeSpan ttl = GetNonceTtl();
+
+            string key =
+                NonceKeyPrefix + nonce;
+
+            bool stored;
+
+            try
+            {
+                stored = await _redisTransactionStore.TryStoreStringAsync(
+                    key,
+                    nonce,
+                    "1",
+                    NonceDataType,
+                    ttl);
+            }
+            catch (Exception ex) when (
+                ex is TransactionStateException ||
+                ex is RedisException)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Nonce replay check failed. Key={Key}",
+                    key);
+
+                throw new UnauthorizedAccessException(
+                    ApiMessages.RequestIntegrityFailed);
+            }
+
+            if (!stored)
+            {
+                throw new UnauthorizedAccessException(
+                    ApiMessages.ReplayAttackDetected);
+            }
+        }
+
+        private TimeSpan GetNonceTtl()
+        {
+            int ttlSeconds =
+                _options.NonceTtlSeconds;
+
+            if (ttlSeconds <= 0)
+            {
+                ttlSeconds = 120;
+            }
+
+            return TimeSpan.FromSeconds(ttlSeconds);
         }
 
         private static (string TimestampHeader, string Nonce) GetWebHeaders(

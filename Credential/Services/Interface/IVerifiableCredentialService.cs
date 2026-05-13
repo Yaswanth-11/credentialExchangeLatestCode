@@ -10,7 +10,7 @@ namespace Credential.Services.Interface
     {
         
         Task<string> GenerateRequestUriAsync(PresentationRequest request, string accessToken);
-        // Task<object> FetchRequestObjectAsync(string transactionId);
+        
         Task<AuthRequestObject> FetchRequestObjectAsync(string transactionId);
         Task<ParsedPresentationDefinition> ParsePresentationDefinitionAsync(PresentationDefinition presentationDefinition);
         Task<VerifiablePresentationResponse> GeneratePresentationSubmissionAsync(PresentationSubmissionRequest request);
@@ -28,13 +28,13 @@ namespace Credential.Services.Interface
 
         public ServiceResult prepareRequestURI(string docType, Dictionary<string, List<string>> claims);
 
-        public ServiceResult getPresentationDefinition(string transactionId);
+        Task<ServiceResult> getPresentationDefinition(string transactionId);
 
-        public ServiceResult parsePresentationDefinition(object requestData);
+        Task<ServiceResult> parsePresentationDefinition(object requestData);
 
-        public ServiceResult parseISO(object requestData);
+        Task<ServiceResult> parseISO(object requestData);
 
-        public ServiceResult postISO(string transactionId, object requestData);
+        Task<ServiceResult> postISO(string transactionId, object requestData);
 
         Task<ServiceResult> getISO(string transactionId);
 

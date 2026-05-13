@@ -4,6 +4,8 @@ namespace Credential.RedisDB
     {
         Task StoreStringAsync(string key, string transactionId, string payload, string dataType, TimeSpan? ttl = null);
 
+        Task<bool> TryStoreStringAsync(string key, string transactionId, string payload, string dataType, TimeSpan? ttl = null);
+
         Task EnsureExistsAndLogTtlAsync(string key, string transactionId, string dataType);
 
         Task<string> GetRequiredStringAsync(string key, string transactionId, string dataType);

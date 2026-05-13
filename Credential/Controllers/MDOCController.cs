@@ -83,7 +83,7 @@ namespace Credential.Controllers
         }
 
         [HttpGet("getPresentationDefinition/{transactionId}")]
-        public IActionResult getPresentationDefinition(string transactionId)
+        public async Task<IActionResult> getPresentationDefinition(string transactionId)
         {
             _logger.LogInformation("Fetching PresentationDefinition for transactionId: {TransactionId}", transactionId);
 
@@ -99,7 +99,7 @@ namespace Credential.Controllers
 
             try
             {
-                return Ok(_verifiableCredentialService.getPresentationDefinition(transactionId));
+                return Ok(await _verifiableCredentialService.getPresentationDefinition(transactionId));
             }
             catch (LxException)
             {
@@ -108,7 +108,7 @@ namespace Credential.Controllers
         }
 
         [HttpPost("parsePresentationDefinition")]
-        public ServiceResult parsePresentationDefinition([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object requestData)
+        public async Task<ServiceResult> parsePresentationDefinition([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object requestData)
         {
             _logger.LogInformation("Processing PresentationDefinition and QR Engagement Data.");
 
@@ -119,7 +119,7 @@ namespace Credential.Controllers
 
             try
             {
-                return _verifiableCredentialService.parsePresentationDefinition(requestData);
+                return await _verifiableCredentialService.parsePresentationDefinition(requestData);
             }
             catch (LxException ex)
             {
@@ -128,7 +128,7 @@ namespace Credential.Controllers
         }
 
         [HttpPost("parseISO")]
-        public ServiceResult parseISO([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object RequestData)
+        public async Task<ServiceResult> parseISO([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object RequestData)
         {
             _logger.LogInformation("Processing PresentationDefinition and QR Engagement Data.");
 
@@ -139,7 +139,7 @@ namespace Credential.Controllers
 
             try
             {
-                return _verifiableCredentialService.parseISO(RequestData);
+                return await _verifiableCredentialService.parseISO(RequestData);
             }
             catch (LxException ex)
             {
@@ -148,7 +148,7 @@ namespace Credential.Controllers
         }
 
         [HttpPost("postISO/{transactionId}")]
-        public IActionResult postISO(string transactionId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object requestData)
+        public async Task<IActionResult> postISO(string transactionId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] object requestData)
         {
             _logger.LogInformation("Saving MDOC request for transactionId: {TransactionId}", transactionId);
 
@@ -164,7 +164,7 @@ namespace Credential.Controllers
 
             try
             {
-                return Ok(_verifiableCredentialService.postISO(transactionId, requestData));
+                return Ok(await _verifiableCredentialService.postISO(transactionId, requestData));
             }
             catch (LxException ex)
             {

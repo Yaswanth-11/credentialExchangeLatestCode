@@ -453,10 +453,17 @@ namespace Credential.Services
                 _logger.LogInformation("Request body is submitted to holdervp api of nodejs");
                 // Debug: Log the raw response for clarity
 
-                // Deserialize the raw response into a dynamic object to examine its structure
-                ServiceResult deserializedDynamicResponse = JsonConvert.DeserializeObject<ServiceResult>(verifiablePresentationResponse.ToString());
+                if (verifiablePresentationResponse == null)
+                {
+                    _logger.LogError("Node js service returned empty response");
+                    throw new Exception("Error generating Presentation Submission");
+                }
 
-                if (!deserializedDynamicResponse.Success)
+                // Deserialize the raw response into a dynamic object to examine its structure
+                ServiceResult? deserializedDynamicResponse =
+                    JsonConvert.DeserializeObject<ServiceResult>(verifiablePresentationResponse.ToString());
+
+                if (deserializedDynamicResponse == null || !deserializedDynamicResponse.Success)
                 {
                     _logger.LogError("Error returned from node js service call");
                     throw new Exception("Error generating Presentation Submission");
@@ -519,53 +526,47 @@ namespace Credential.Services
 
         private async Task<object> CallNodeJsGenerateVpHandler(PresentationSubmissionRequest request)
         {
-            using (var httpClient = new HttpClient())
+            // Construct the payload
+            var payload = new
             {
-                // Construct the payload
-                var payload = new
+                presentationDefinition = request.presentation_Definition,
+                VerifiableCredential = request.verifiableCredential,
+                SelectedClaims = request.selectedClaims,
+                nonce = request.Nonce,
+                HolderSUID = request.holderSUID
+            };
+
+            // Serialize the payload to JSON
+            using var content = new StringContent(
+                JsonConvert.SerializeObject(payload),
+                Encoding.UTF8,
+                "application/json");
+
+            try
+            {
+                var apiurl = _configuration["ApiSettings:HolderVpUrl"];
+
+                // Send the POST request
+                var response = await _httpClient.PostAsync(apiurl, content);
+
+                _logger.LogInformation("received response from holdervp api of nodejs");
+
+                // Read and log the response content
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
                 {
-                    presentationDefinition = request.presentation_Definition,
-                    VerifiableCredential = request.verifiableCredential,
-                    SelectedClaims = request.selectedClaims,
-                    nonce = request.Nonce,
-                    HolderSUID = request.holderSUID
-                };
-
-                // Serialize the payload to JSON
-                var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
-
-                try
-                {
-                    var apiurl = _configuration["ApiSettings:HolderVpUrl"];
-                   
-                   
-                    // Log the payload being sent
-
-                    // Send the POST request
-                    var response = await httpClient.PostAsync(apiurl, content);
-                   
-                    _logger.LogInformation("received response from holdervp api of nodejs");
-                    // Log the HTTP response metadata
-
-                    // Read and log the response content
-                    var responseContent = await response.Content.ReadAsStringAsync();
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        _logger.LogError("holdervp api of nodejs failed");
-                        throw new Exception($"Failed to call Node.js API. Status: {response.StatusCode}, Response: {responseContent}");
-                    }
-
-                    // Deserialize and return the response object
-                    return responseContent;
+                    _logger.LogError("holdervp api of nodejs failed");
+                    throw new Exception($"Failed to call Node.js API. Status: {response.StatusCode}, Response: {responseContent}");
                 }
-                catch (Exception ex)
-                {
-                    // Log any exceptions that occur
-                    //throw;
-                    _logger.LogError("Error in  callnodejs holdervp api {0}", ex.Message);
-                    throw new Exception("Error in  callnodejs holdervp api", ex);
-                }
+
+                // Deserialize and return the response object
+                return responseContent;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Error in  callnodejs holdervp api {0}", ex.Message);
+                throw new Exception("Error in  callnodejs holdervp api", ex);
             }
         }
 
@@ -1079,14 +1080,12 @@ namespace Credential.Services
         }
 
 
-        public ServiceResult getPresentationDefinition(string transactionId)
+        public async Task<ServiceResult> getPresentationDefinition(string transactionId)
         {
             try
             {
-                var data = _redisTransactionStore
-                    .ConsumeRequiredStringAsync(transactionId, transactionId, "mdoc-presentation-definition")
-                    .GetAwaiter()
-                    .GetResult();
+                var data = await _redisTransactionStore
+                    .ConsumeRequiredStringAsync(transactionId, transactionId, "mdoc-presentation-definition");
 
                 string URL = $"{_configuration["ApiSettings:MdocUrl"]}/api/mdoc/postISO/{transactionId}";
 
@@ -1115,7 +1114,7 @@ namespace Credential.Services
             }
         }
 
-        public ServiceResult parsePresentationDefinition(object requestData)
+        public async Task<ServiceResult> parsePresentationDefinition(object requestData)
         {
            
 
@@ -1235,10 +1234,8 @@ namespace Credential.Services
                 }
 
                 string QRDataKey = $"qrData:{presentationId}";
-                _redisTransactionStore
-                    .StoreStringAsync(QRDataKey, presentationId, qrDataString, "mdoc-qr-data")
-                    .GetAwaiter()
-                    .GetResult();
+                await _redisTransactionStore
+                    .StoreStringAsync(QRDataKey, presentationId, qrDataString, "mdoc-qr-data");
 
                 LX_MDOC_DATA mdocData = new LX_MDOC_DATA();
                 PKIMethods.Instance.PKIParseMDOCDeviceEngagement(qrDataString, ref mdocData);
@@ -1248,10 +1245,8 @@ namespace Credential.Services
                 string jsonData = JsonConvert.SerializeObject(modifiedPresentationDefinition);
 
                 string MPresentationDefinitionKey = $"jsonData:{presentationId}";
-                _redisTransactionStore
-                    .StoreStringAsync(MPresentationDefinitionKey, presentationId, jsonData, "mdoc-presentation-json")
-                    .GetAwaiter()
-                    .GetResult();
+                await _redisTransactionStore
+                    .StoreStringAsync(MPresentationDefinitionKey, presentationId, jsonData, "mdoc-presentation-json");
 
                 byte[] mdocRequest = null;
                 PKIMethods.Instance.PKIPrepareMDOCRequests(jsonData, ref mdocRequest);
@@ -1290,7 +1285,7 @@ namespace Credential.Services
         }
 
 
-        public ServiceResult parseISO(object requestData)
+        public async Task<ServiceResult> parseISO(object requestData)
         {
             string decryptedData = "";
             try
@@ -1313,16 +1308,12 @@ namespace Credential.Services
 
                 // Define keys for Redis retrieval
                 string QRDataKey = $"qrData:{presentationId}";
-                string qrDataString = _redisTransactionStore
-                    .ConsumeRequiredStringAsync(QRDataKey, presentationId.ToString(), "mdoc-qr-data")
-                    .GetAwaiter()
-                    .GetResult();
+                string qrDataString = await _redisTransactionStore
+                    .ConsumeRequiredStringAsync(QRDataKey, presentationId.ToString(), "mdoc-qr-data");
 
                 string MPresentationDefinitionKey = $"jsonData:{presentationId}";
-                string jsonData = _redisTransactionStore
-                    .ConsumeRequiredStringAsync(MPresentationDefinitionKey, presentationId.ToString(), "mdoc-presentation-json")
-                    .GetAwaiter()
-                    .GetResult();
+                string jsonData = await _redisTransactionStore
+                    .ConsumeRequiredStringAsync(MPresentationDefinitionKey, presentationId.ToString(), "mdoc-presentation-json");
 
                 LX_MDOC_DATA mdocData = new LX_MDOC_DATA();
 
@@ -1386,7 +1377,7 @@ namespace Credential.Services
         }
 
 
-        public ServiceResult postISO(string transactionId, object requestData)
+        public async Task<ServiceResult> postISO(string transactionId, object requestData)
         {
             try
             {
@@ -1406,10 +1397,8 @@ namespace Credential.Services
                 string jsonString = requestData.ToString();
 
                 string redisKey = $"{transactionId}_mdoc";
-                _redisTransactionStore
-                    .StoreStringAsync(redisKey, transactionId, jsonString, "mdoc-iso-post")
-                    .GetAwaiter()
-                    .GetResult();
+                await _redisTransactionStore
+                    .StoreStringAsync(redisKey, transactionId, jsonString, "mdoc-iso-post");
 
                 return new ServiceResult(true, "JSON object saved successfully.", 200, "OK", "Posted Successfully");
             }

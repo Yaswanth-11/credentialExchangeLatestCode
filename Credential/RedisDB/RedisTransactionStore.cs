@@ -69,6 +69,41 @@ namespace Credential.RedisDB
                 effectiveTtl);
         }
 
+        public async Task<bool> TryStoreStringAsync(string key, string transactionId, string payload, string dataType, TimeSpan? ttl = null)
+        {
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                _logger.LogError(
+                    "Redis payload was empty. DataType={DataType} TransactionId={TransactionId} Key={Key}",
+                    dataType,
+                    transactionId,
+                    key);
+                throw TransactionStateException.MissingPayload(key, transactionId);
+            }
+
+            var effectiveTtl = ttl ?? _defaultTtl;
+            var isSet = await _database.StringSetAsync(key, payload, expiry: effectiveTtl, when: When.NotExists);
+            if (!isSet)
+            {
+                _logger.LogWarning(
+                    "Redis write skipped because key exists. DataType={DataType} TransactionId={TransactionId} Key={Key} TTL={Ttl}",
+                    dataType,
+                    transactionId,
+                    key,
+                    effectiveTtl);
+                return false;
+            }
+
+            _logger.LogInformation(
+                "Redis write succeeded. DataType={DataType} TransactionId={TransactionId} Key={Key} TTL={Ttl}",
+                dataType,
+                transactionId,
+                key,
+                effectiveTtl);
+
+            return true;
+        }
+
         public async Task EnsureExistsAndLogTtlAsync(string key, string transactionId, string dataType)
         {
             var exists = await _database.KeyExistsAsync(key);

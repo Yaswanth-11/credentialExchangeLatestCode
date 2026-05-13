@@ -38,7 +38,22 @@ namespace Credential.Models
         public const string RequestIntegrityFailed =
             "Request integrity validation failed.";
 
+        public const string ReplayAttackDetected =
+            "Replay attack detected.";
+
         public const string OperationFailed =
             "Operation failed";
+
+        public const string Unauthorized =
+            "Unauthorized";
+
+        public const string BadRequest =
+            "Bad request";
+
+        public const string NotFound =
+            "Not found";
+
+        public const string Gone =
+            "Gone";
     }
 }
