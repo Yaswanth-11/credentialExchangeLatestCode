@@ -86,14 +86,24 @@ namespace Credential.Middleware
                 return;
             }
 
+            string? platform =
+                context.Request.Headers["X-Client-Platform"].FirstOrDefault();
+            bool isWeb = IsWebPlatform(platform);
+            bool isGetRequest = HttpMethods.IsGet(context.Request.Method);
+
+            if (!IsValidationEnabledForPlatform(isWeb) ||
+                !IsValidationRequiredForMethod(isWeb, isGetRequest))
+            {
+                await _next(context);
+                return;
+            }
+
             string checksum = GetRequiredHeader(
                 context,
                 "X-Checksum",
                 ApiMessages.ChecksumHeaderMissing);
 
             string requestBody = await ReadRequestBodyAsync(context);
-
-            bool isGetRequest = HttpMethods.IsGet(context.Request.Method);
 
             if (!isGetRequest &&
                 string.IsNullOrWhiteSpace(requestBody))
@@ -102,17 +112,8 @@ namespace Credential.Middleware
                     ApiMessages.RequestBodyEmpty);
             }
 
-            string? platform =
-                context.Request.Headers["X-Client-Platform"].FirstOrDefault();
-
-            if (IsWebPlatform(platform))
+            if (isWeb)
             {
-                if (!_options.EnableWeb)
-                {
-                    await _next(context);
-                    return;
-                }
-
                 await ValidateWebChecksumAsync(
                     context,
                     checksum,
@@ -120,12 +121,6 @@ namespace Credential.Middleware
             }
             else
             {
-                if (!_options.EnableMobile)
-                {
-                    await _next(context);
-                    return;
-                }
-
                 ValidateMobileChecksum(
                     context,
                     checksum,
@@ -143,6 +138,38 @@ namespace Credential.Middleware
             }
 
             return !_options.Enabled;
+        }
+
+        private bool IsValidationEnabledForPlatform(bool isWeb)
+        {
+            if (isWeb)
+            {
+                return _options.EnableWeb;
+            }
+
+            return _options.EnableMobile;
+        }
+
+        private bool IsValidationRequiredForMethod(
+            bool isWeb,
+            bool isGetRequest)
+        {
+            if (isWeb)
+            {
+                if (isGetRequest)
+                {
+                    return _options.WebRequireChecksumForGet ?? true;
+                }
+
+                return _options.WebRequireChecksumForNonGet ?? true;
+            }
+
+            if (isGetRequest)
+            {
+                return _options.MobileRequireChecksumForGet ?? true;
+            }
+
+            return _options.MobileRequireChecksumForNonGet ?? true;
         }
 
         private static bool IsWebPlatform(string? platform)

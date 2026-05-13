@@ -31,6 +31,12 @@ namespace Credential.Middleware
         private const string TokenCacheDataType =
             "token-introspection";
 
+        private static readonly string[] DefaultSkipPaths =
+        {
+            "/health",
+            "/api/verifier/presentation/request/uri"
+        };
+
         public AuthorizationIntrospectionMiddleware(
             RequestDelegate next,
             ILogger<AuthorizationIntrospectionMiddleware> logger,
@@ -85,13 +91,87 @@ namespace Credential.Middleware
                 return true;
             }
 
-            if (context.Request.Path.StartsWithSegments("/health"))
+            if (IsPathSkipped(context))
             {
                 return true;
             }
 
-            return context.Request.Path.StartsWithSegments(
-                "/api/verifier/presentation/request/uri");
+            string? platform =
+                context.Request.Headers["X-Client-Platform"].FirstOrDefault();
+            bool isWeb = IsWebPlatform(platform);
+            bool isGetRequest =
+                HttpMethods.IsGet(context.Request.Method);
+
+            if (!IsPlatformEnabled(isWeb) ||
+                !IsMethodRequired(isWeb, isGetRequest))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool IsPathSkipped(HttpContext context)
+        {
+            foreach (string path in GetSkipPaths())
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    continue;
+                }
+
+                if (context.Request.Path.StartsWithSegments(
+                    path,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private string[] GetSkipPaths()
+        {
+            return _options.SkipPaths ?? DefaultSkipPaths;
+        }
+
+        private static bool IsWebPlatform(string? platform)
+        {
+            return string.Equals(
+                platform,
+                "web",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsPlatformEnabled(bool isWeb)
+        {
+            if (isWeb)
+            {
+                return _options.EnableWeb ?? true;
+            }
+
+            return _options.EnableMobile ?? true;
+        }
+
+        private bool IsMethodRequired(bool isWeb, bool isGetRequest)
+        {
+            if (isWeb)
+            {
+                if (isGetRequest)
+                {
+                    return _options.WebRequireForGet ?? true;
+                }
+
+                return _options.WebRequireForNonGet ?? true;
+            }
+
+            if (isGetRequest)
+            {
+                return _options.MobileRequireForGet ?? true;
+            }
+
+            return _options.MobileRequireForNonGet ?? true;
         }
 
         private static string BuildCacheKey(string accessToken)
